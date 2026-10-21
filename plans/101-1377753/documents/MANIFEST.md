@@ -1,6 +1,6 @@
 # Mavat deposit documents - plan 101-1377753
 
-Plan page: https://mavat.iplan.gov.il/SV4/1/1005407450/310
+Plan page: [עמוד התכנית במב"ת](https://mavat.iplan.gov.il/SV4/1/1005407450/310)
 
 Source: mavat.iplan.gov.il (Israel Planning Administration), public deposit-stage documents,
 retrieved 2026-10-19 via the plan's public SV4 page (category ZIP downloads).

@@ -1,6 +1,6 @@
 # מסמכי רקע לתכנית — plan 101-1377753 (background documents)
 
-Plan page: https://mavat.iplan.gov.il/SV4/1/1005407450/310
+Plan page: [עמוד התכנית במב"ת](https://mavat.iplan.gov.il/SV4/1/1005407450/310)
 
 Source: mavat.iplan.gov.il (Israel Planning Administration), public deposit-stage
 background documents ("מסמכי רקע לתכנית" accordion on the plan page), retrieved
