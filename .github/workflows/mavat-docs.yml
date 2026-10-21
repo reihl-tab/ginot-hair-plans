@@ -20,7 +20,7 @@ on:
         required: true
         default: "101-1377753"
       fetch_mode:
-        description: "auto (click-through) or zip (relay the page's own zipAttacments call for the doc-list ids)"
+        description: "auto (click-through), zip (relay), direct (doc-list eids) or clickdocs (page-issued category downloads)"
         required: true
         default: "zip"
       doc_list:
