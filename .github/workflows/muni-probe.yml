@@ -12,6 +12,10 @@ on:
         description: "Comma-separated public URLs to GET"
         required: true
         default: "https://tor.jerusalem.muni.il/Service.aspx?channel=3554&Id=1324"
+      mode:
+        description: "requests (plain GET) or browser (playwright render, for JS apps)"
+        required: true
+        default: "requests"
 
 permissions:
   contents: read
@@ -40,18 +44,31 @@ jobs:
           VPN_L2TP_PASSWORD: ${{ secrets.VPN_L2TP_PASSWORD }}
         run: sudo --preserve-env=VPN_L2TP_SERVER,VPN_L2TP_PSK,VPN_L2TP_USERNAME,VPN_L2TP_PASSWORD python3 scripts/vpn/l2tp.py up
 
-      - name: Probe public pages
+      - name: Probe public pages (requests)
+        if: inputs.mode == 'requests'
         env:
           PYTHONUNBUFFERED: "1"
           PROBE_URLS: ${{ inputs.urls }}
         run: python3 scripts/vpn/muni_probe.py
+
+      - name: Probe public pages (browser)
+        if: inputs.mode == 'browser'
+        env:
+          PYTHONUNBUFFERED: "1"
+          PROBE_URLS: ${{ inputs.urls }}
+        run: |
+          pip install playwright > /dev/null 2>&1
+          python3 -m playwright install --with-deps chromium > /dev/null 2>&1
+          python3 scripts/vpn/muni_browser_probe.py
 
       - name: Upload probe artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: muni-probe
-          path: /tmp/muni_probe/
+          path: |
+            /tmp/muni_probe/
+            /tmp/muni_browser_probe/
           if-no-files-found: ignore
 
       - name: Tear down tunnel and remove generated secret material
