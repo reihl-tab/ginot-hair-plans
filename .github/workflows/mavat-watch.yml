@@ -22,7 +22,7 @@ name: Mavat watch (VPN)
 
 on:
   schedule:
-    - cron: "43 4 * * 2"   # Tuesdays 04:43 UTC (off-peak, weekly)
+    - cron: "43 4 * * *"   # daily 04:43 UTC (off-peak); tightened from weekly on owner request 2026-10-21 (immediate flagging of new docs/decisions for plan 101-1377753)
   workflow_dispatch:
     inputs:
       mode:

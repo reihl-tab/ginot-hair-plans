@@ -8,6 +8,11 @@ plan page and captures:
      plan's current station/status -> data/mavat_plan_status.json
   2. a normalized-text fingerprint of the page -> stored in the same
      file; future runs diff fingerprints to flag changed plan pages.
+  3. an API snapshot of the plan's own public SV4 data JSON (document
+     lists with editing dates, committee decisions, publication
+     statuses, quantities, opposition count) -> diffed per category so
+     NEW BACKGROUND DOCUMENTS and NEW COMMITTEE DECISIONS are flagged
+     (page text does not expose them; gap verified 2026-10-21).
 
 Public pages only, no login, slow pacing, and on any hard challenge /
 CAPTCHA / throttling the run stops with exit 2 (no workaround).
@@ -24,6 +29,7 @@ import time
 TRACKED = "data/mavat_tracked_plans.json"
 OUT = "data/mavat_plan_status.json"
 SV4 = "https://mavat.iplan.gov.il/SV4/1/{mp_id}/310"
+API = "https://mavat.iplan.gov.il/rest/api/SV4/1?mid={mp_id}&guid=0"
 PACE_SECONDS = 6
 # Hard-challenge detection is positive-content based (issue #32): the
 # legitimate SV4 page always loads a reCAPTCHA script token for its gated
@@ -82,6 +88,79 @@ def scrape_plan(page, mp_id, num):
             "fingerprint": fingerprint, "page_chars": len(text)}
 
 
+API_DOC_ARRAYS = ("rsPlanDocs", "rsPlanDocsAdd", "rsPlanDocsGen", "rsPubDocs")
+
+
+def _s(v):
+    if v is None:
+        return ""
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    return str(v).strip()
+
+
+def api_snapshot(ctx, mp_id, page_url):
+    """Fetch the plan's own public SV4 data JSON (the same endpoint the
+    plan page itself calls) using the browser context's session, and
+    reduce it to a diff-able snapshot: signed/background document list,
+    committee decisions, internet-publication statuses and quantities.
+
+    These lists are NOT fully visible in the page text, so the page-text
+    fingerprint alone misses new background documents and new committee
+    decisions (verified 2026-10-21)."""
+    r = ctx.request.get(API.format(mp_id=mp_id),
+                        headers={"Referer": page_url}, timeout=60000)
+    if r.status != 200:
+        raise RuntimeError(f"api_status_{r.status}")
+    data = json.loads(r.body().decode("utf-8", "replace"))
+
+    docs = []
+    for arr in API_DOC_ARRAYS:
+        for d in data.get(arr) or []:
+            docs.append("|".join([arr, _s(d.get("ID")), _s(d.get("DOC_NAME")),
+                                  _s(d.get("EDITING_DATE")),
+                                  _s(d.get("ED_DOC_INFO"))]))
+    decisions = []
+    for d in data.get("rsDes") or []:
+        decisions.append("|".join([_s(d.get("MEETING_NO")), _s(d.get("MEETING_DATE")),
+                                   _s(d.get("COMMITTE_NAME")), _s(d.get("CM_NAME")),
+                                   _s(d.get("FO_NAME"))]))
+    internet = []
+    for d in data.get("rsInternet") or []:
+        details = re.sub(r"<[^>]+>", " ", _s(d.get("DETAILS")))
+        details = re.sub(r"\s+", " ", details)
+        internet.append("|".join([_s(d.get("LIS_DESC")), _s(d.get("EIS_DATE")), details]))
+    quantities = []
+    for d in data.get("rsQuantities") or []:
+        quantities.append("|".join(f"{k}={_s(v)}" for k, v in sorted(d.items())))
+    oppositions = data.get("rsOppositions") or []
+
+    snap = {"docs": sorted(docs), "decisions": sorted(decisions),
+            "internet": sorted(internet), "quantities": sorted(quantities),
+            "oppositions_count": len(oppositions)}
+    snap["fingerprint"] = hashlib.sha256(
+        json.dumps(snap, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return snap
+
+
+def diff_snapshots(old, new):
+    """Human-readable change reasons between two api snapshots."""
+    reasons = []
+    if not old:
+        return reasons
+    for key, label in (("docs", "מסמכים"), ("decisions", "דיונים/החלטות"),
+                       ("internet", "סטטוסי פרסום"), ("quantities", "כמויות")):
+        added = [x for x in new.get(key, []) if x not in set(old.get(key, []))]
+        removed = [x for x in old.get(key, []) if x not in set(new.get(key, []))]
+        if added or removed:
+            reasons.append(f"{label}: +{len(added)}/-{len(removed)}")
+    if new.get("oppositions_count") != old.get("oppositions_count"):
+        reasons.append(f"התנגדויות: {old.get('oppositions_count')} -> "
+                       f"{new.get('oppositions_count')}")
+    return reasons
+
+
 def main():
     from playwright.sync_api import sync_playwright
 
@@ -124,13 +203,27 @@ def main():
                 continue
             failures = 0
             prev = old.get(num, {})
+            try:
+                api = api_snapshot(ctx, mp_id, SV4.format(mp_id=mp_id))
+                info["api"] = api
+            except Exception as exc:
+                print(f"{num}: api snapshot failed ({type(exc).__name__}) - "
+                      f"page fingerprint only this run")
+                api = None
+            reasons = []
             if prev.get("fingerprint") and prev["fingerprint"] != info["fingerprint"]:
-                changed.append(num)
+                reasons.append("טקסט העמוד השתנה")
+            if api and prev.get("api"):
+                reasons += diff_snapshots(prev["api"], api)
+            if reasons:
+                changed.append({"plan": num, "reasons": reasons})
             info["mp_id"] = mp_id
             result[num] = info
             print(f"{num}: station={info['station_text'] or '?'} "
                   f"deadline={'yes' if info['deadline_text'] else 'no'} "
-                  f"fp={info['fingerprint']}")
+                  f"fp={info['fingerprint']} "
+                  f"api_fp={api['fingerprint'] if api else '-'} "
+                  f"changed={'; '.join(reasons) if reasons else 'no'}")
         browser.close()
 
     payload = {"generated": datetime.date.today().isoformat(),
