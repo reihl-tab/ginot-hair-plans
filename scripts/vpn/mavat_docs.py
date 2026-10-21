@@ -381,9 +381,60 @@ def main():
         # captcha-bound and was stopped ({"CaptchaNotValid":true} on
         # replay, run 39552931669). This mode only clicks the same
         # public buttons a visitor clicks; every request is issued by
-        # the page itself with its own per-click token.
+        # the page itself with its own per-click token. Responses to
+        # those page-issued requests are read from the page's own
+        # session (the page downloads ZIPs via XHR, so no browser
+        # download event fires); we never replay a captured token.
         if os.environ.get("MAVAT_FETCH_MODE") == "clickdocs":
             print("clickdocs mode: page-issued downloads only", flush=True)
+
+            seen_bin = set()
+
+            def on_binary_response(resp):
+                try:
+                    url = resp.url
+                    if "iplan" not in url:
+                        return
+                    ctype = (resp.headers.get("content-type") or "").split(";")[0].lower()
+                    if ctype not in ("application/octet-stream", "application/pdf"):
+                        return
+                    key = (url, resp.headers.get("content-length") or "")
+                    if key in seen_bin:
+                        return
+                    seen_bin.add(key)
+                    body = resp.body()
+                    if not body or len(body) < 200:
+                        return
+                    cd = resp.headers.get("content-disposition") or ""
+                    m = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", cd)
+                    base = m.group(1).strip() if m else ""
+                    if not base:
+                        if body[:4] == b"%PDF":
+                            base = f"page_doc_{len(seen_bin):02d}.pdf"
+                        elif body[:2] == b"PK":
+                            base = f"page_zip_{len(seen_bin):02d}.zip"
+                        else:
+                            base = f"page_bin_{len(seen_bin):02d}.bin"
+                    fname = safe_name(base)
+                    path = OUT / "zips" / fname
+                    n = 1
+                    while path.exists():
+                        path = OUT / "zips" / f"{n}_{fname}"
+                        n += 1
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(body)
+                    downloaded_names.add(path.name)
+                    report["downloads"].append({"file": path.name, "via": "page_issued_response",
+                                                "url": url[:200], "bytes": len(body), "ctype": ctype})
+                    print(f"captured {path.name} ({len(body)} bytes)", flush=True)
+                except Exception:
+                    pass
+
+            page.on("response", on_binary_response)
+            try:
+                ctx.on("page", lambda p2: p2.on("response", on_binary_response))
+            except Exception:
+                pass
 
             def expand(label):
                 for el in page.get_by_text(re.compile(f"^{label}$")).all():
@@ -394,79 +445,88 @@ def main():
                             return True
                     except Exception:
                         continue
-                report["failures"].append({"stage": "expand", "pattern": label,
-                                           "error": "not_clickable"})
                 return False
 
-            for label in ("מסמכי התכנית", "מסמכי רקע לתכנית", "מסמכי מידע מנהלי"):
-                expand(label)
+            expanded = {}
+            for label in ("מסמכי התכנית", "מסמכי מידע מנהלי", "נוסחי פרסום",
+                          "החלטות מוסדות תכנון", "מסמכי רקע לתכנית"):
+                expanded[label] = expand(label)
+            if not expanded.get("מסמכי רקע לתכנית"):
+                report["failures"].append({"stage": "expand", "pattern": "מסמכי רקע לתכנית",
+                                           "error": "label_not_on_page"})
+            # plan-docs dropdown (e.g. "מסמכים מופקדים") may hide the
+            # category's ZIP link until opened
+            try:
+                for el in page.get_by_text(re.compile("מסמכים מופקדים")).all():
+                    try:
+                        if el.is_visible():
+                            el.click(timeout=5000)
+                            time.sleep(1.5)
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
             page.screenshot(path=str(OUT / "clickdocs_expanded.png"), full_page=True)
 
-            # every visible category ZIP link: each is a distinct
-            # page-issued download of one document category
+            def click_and_wait(el, timeout):
+                try:
+                    with page.expect_download(timeout=20000) as dl_info:
+                        el.click(timeout=timeout)
+                    return dl_info.value
+                except Exception:
+                    return None
+
             idx = 0
+            clicked = set()
             for el in page.get_by_text(re.compile("הורדת קבצים ב ZIP")).all():
                 try:
                     if not el.is_visible():
                         continue
+                    marker = el.evaluate("e => e.outerHTML.slice(0,400)")
+                    if marker in clicked:
+                        continue
+                    clicked.add(marker)
                     idx += 1
-                    with page.expect_download(timeout=90000) as dl_info:
-                        el.click(timeout=6000)
-                    dl = dl_info.value
-                    path = OUT / "zips" / f"cat{idx:02d}_" + safe_name(dl.suggested_filename)
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    dl.save_as(str(path))
-                    downloaded_names.add(path.name)
-                    report["downloads"].append({"file": path.name, "via": "category_zip",
-                                                "bytes": path.stat().st_size})
-                    print(f"download: {path.name}", flush=True)
-                    time.sleep(PACE_S)
+                    dl = click_and_wait(el, 6000)
+                    if dl:
+                        path = OUT / "zips" / f"cat{idx:02d}_" + safe_name(dl.suggested_filename)
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        dl.save_as(str(path))
+                        downloaded_names.add(path.name)
+                        report["downloads"].append({"file": path.name, "via": "category_zip",
+                                                    "bytes": path.stat().st_size})
+                        print(f"download: {path.name}", flush=True)
+                    time.sleep(2.5)
                 except Exception:
                     continue
 
-            # decisions tab: meeting decision documents, if the page
-            # offers them for download
+            # decisions accordion: open any per-document links it shows
             try:
-                for el in page.get_by_text(re.compile("^דיונים$")).all():
-                    try:
-                        if el.is_visible():
-                            el.click(timeout=6000)
-                            time.sleep(2)
-                            break
-                    except Exception:
-                        continue
                 page.screenshot(path=str(OUT / "clickdocs_meetings.png"), full_page=True)
                 idx2 = 0
-                for selector in ["a", "button", "img"]:
+                for selector in ["a[href*='Attacments']", "a[href*='eid=']",
+                                 "img[title*='הורד']", "a[title*='הורד']",
+                                 "i[title*='הורד']", "span[title*='הורד']"]:
                     for el in page.locator(selector).all():
                         try:
                             if not el.is_visible():
                                 continue
-                            desc = ((el.get_attribute("title") or "") + " " +
-                                    (el.get_attribute("class") or "") + " " +
-                                    (el.inner_text() or "")[:40])
-                            if not re.search(r"הורד|pdf|PDF|מסמך|ייבוא|download", desc, re.I):
-                                continue
                             idx2 += 1
-                            try:
-                                with page.expect_download(timeout=45000) as dl_info:
-                                    el.click(timeout=5000)
-                            except Exception:
-                                continue
-                            dl = dl_info.value
-                            path = OUT / "zips" / f"dec{idx2:02d}_" + safe_name(dl.suggested_filename)
-                            path.parent.mkdir(parents=True, exist_ok=True)
-                            dl.save_as(str(path))
-                            downloaded_names.add(path.name)
-                            report["downloads"].append({"file": path.name, "via": "meetings_tab",
-                                                        "bytes": path.stat().st_size})
-                            print(f"download: {path.name}", flush=True)
-                            time.sleep(PACE_S)
+                            click_and_wait(el, 5000)
+                            time.sleep(2)
                         except Exception:
                             continue
             except Exception as exc:
                 report["failures"].append({"stage": "meetings_tab",
                                            "error": type(exc).__name__})
+
+            # let page-issued XHR downloads settle before closing
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            time.sleep(3)
 
             browser.close()
             got = len(downloaded_names)
