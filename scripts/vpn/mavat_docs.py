@@ -506,6 +506,23 @@ def main():
                 pass
             page.screenshot(path=str(OUT / "clickdocs_expanded.png"), full_page=True)
 
+            # dump the page's own document links/rows so exact download
+            # URLs are known (the Attacments endpoint 404s on a guessed
+            # fn parameter)
+            try:
+                report["dom_doc_links"] = page.evaluate("""() => {
+                  const out = [];
+                  document.querySelectorAll('a[href*="ttacments"], a[href*="eid="]').forEach(a => {
+                    out.push({kind: 'href', href: a.href.slice(0, 300), text: (a.innerText || '').trim().slice(0, 60)});
+                  });
+                  document.querySelectorAll('[onclick*="ttacments"], [onclick*="eid"]').forEach(e => {
+                    out.push({kind: 'onclick', code: (e.getAttribute('onclick') || '').slice(0, 300)});
+                  });
+                  return out;
+                }""")
+            except Exception as exc:
+                report["failures"].append({"stage": "dom_dump", "error": type(exc).__name__})
+
             # decisions first (before any ZIP click can hang the page):
             # expand החלטות מוסדות תכנון, then open the docs it lists
             try:
