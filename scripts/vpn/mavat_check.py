@@ -55,7 +55,17 @@ def normalize(text):
     return text.strip()
 
 
+PAGE_API_JSON = {}
+
+
 def scrape_plan(page, mp_id, num):
+    def _capture(resp):
+        try:
+            if "/rest/api/SV4/1" in resp.url and f"mid={mp_id}" in resp.url:
+                PAGE_API_JSON[mp_id] = resp.json()
+        except Exception:
+            pass
+    page.on("response", _capture)
     page.goto(SV4.format(mp_id=mp_id), wait_until="domcontentloaded", timeout=60000)
     try:
         page.wait_for_load_state("networkidle", timeout=20000)
@@ -112,12 +122,18 @@ def api_snapshot(page, mp_id, page_url):
     # page JS context (session cookies + any page-set headers) is the
     # only context that reliably gets 200 (ctx.request gets 401/403,
     # verified in run 39550270443).
-    data = page.evaluate(
-        """async (url) => {
-          const r = await fetch(url, {credentials: 'include'});
-          if (r.status !== 200) return {__status: r.status};
-          return await r.json();
-        }""", API.format(mp_id=mp_id))
+    data = PAGE_API_JSON.get(mp_id)
+    if not isinstance(data, dict):
+        for attempt in (1, 2):
+            data = page.evaluate(
+                """async (url) => {
+                  const r = await fetch(url, {credentials: 'include'});
+                  if (r.status !== 200) return {__status: r.status};
+                  return await r.json();
+                }""", API.format(mp_id=mp_id))
+            if isinstance(data, dict) and not data.get("__status"):
+                break
+            time.sleep(4)
     if not isinstance(data, dict) or data.get("__status"):
         raise RuntimeError(f"api_status_{(data or {}).get('__status')}")
 
@@ -214,7 +230,7 @@ def main():
                 api = api_snapshot(page, mp_id, SV4.format(mp_id=mp_id))
                 info["api"] = api
             except Exception as exc:
-                print(f"{num}: api snapshot failed ({type(exc).__name__}) - "
+                print(f"{num}: api snapshot failed ({type(exc).__name__}: {exc}) - "
                       f"page fingerprint only this run")
                 api = None
             reasons = []
