@@ -19,6 +19,10 @@ on:
         description: "Plan number"
         required: true
         default: "101-1377753"
+      fetch_mode:
+        description: "auto (click-through) or zip (relay the page's own zipAttacments call for the doc-list ids)"
+        required: true
+        default: "zip"
 
 permissions:
   contents: read
@@ -60,6 +64,8 @@ jobs:
           PYTHONUNBUFFERED: "1"
           MAVAT_MP_ID: ${{ inputs.mp_id }}
           MAVAT_PLAN_NUMBER: ${{ inputs.plan_number }}
+          MAVAT_FETCH_MODE: ${{ inputs.fetch_mode }}
+          MAVAT_DOC_LIST: data/mavat_doclist_${{ inputs.plan_number }}.json
         run: python3 scripts/vpn/mavat_docs.py
 
       - name: Upload documents artifact

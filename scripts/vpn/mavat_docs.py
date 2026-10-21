@@ -233,6 +233,111 @@ def main():
             print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
             return 0 if got else 1
 
+
+        # --- 2c. zip mode: relay the page's own zipAttacments call ----
+        # The page issues POST /rest/api/zipAttacments {auth,fname,ids,
+        # entityNumber,token} when its own "הורדת קבצים ב ZIP" link is
+        # clicked. We capture that token from the page-issued request,
+        # then ask the same public endpoint (from the page's own JS
+        # context, same session) for the background-appendix ids. Public
+        # docs only; no login; no challenge bypass.
+        if os.environ.get("MAVAT_FETCH_MODE") == "zip" and direct_docs:
+            import base64
+            print(f"zip mode: {len(direct_docs)} documents", flush=True)
+            tokens = []
+
+            def on_zip_req(req):
+                try:
+                    if "zipAttacments" in req.url and req.method == "POST":
+                        data = json.loads(req.post_data or "{}")
+                        if data.get("token"):
+                            tokens.append(data["token"])
+                except Exception:
+                    pass
+
+            page.on("request", on_zip_req)
+
+            def harvest_token():
+                before = len(tokens)
+                try:
+                    page.get_by_text(re.compile("הורדת קבצים ב ZIP")).first.click(timeout=9000)
+                except Exception:
+                    pass
+                for _ in range(40):
+                    if len(tokens) > before:
+                        return tokens[-1]
+                    time.sleep(0.5)
+                return tokens[-1] if tokens else None
+
+            FETCH_JS = """async ({ids, fname, entityNumber, token}) => {
+              const r = await fetch('/rest/api/zipAttacments', {
+                method: 'POST', credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({auth:'', fname, ids, entityNumber, token})});
+              const blob = await r.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = fname;
+              document.body.appendChild(a); a.click();
+              return r.status;
+            }"""
+
+            def fetch_zip(ids, out_name):
+                token = tokens[-1] if tokens else harvest_token()
+                if not token:
+                    return None
+                try:
+                    with page.expect_download(timeout=120000) as dl_info:
+                        status = page.evaluate(
+                            FETCH_JS,
+                            {"ids": [int(i) for i in ids], "fname": out_name,
+                             "entityNumber": PLAN, "token": token})
+                    dl = dl_info.value
+                    path = OUT / "zipdocs" / safe_name(out_name)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    dl.save_as(str(path))
+                    return {"file": path.name, "status": status,
+                            "bytes": path.stat().st_size}
+                except Exception as exc:
+                    report["failures"].append({"stage": "zip_fetch",
+                                               "ids": ids[:3],
+                                               "error": type(exc).__name__})
+                    return None
+
+            harvest_token()  # learn the token from the page's own request
+            all_ids = [d["id"] for d in direct_docs]
+            batch = fetch_zip(all_ids, f"{PLAN}_background_docs.zip")
+            ok = False
+            if batch and batch["bytes"] > 10000:
+                import zipfile
+                try:
+                    with zipfile.ZipFile(OUT / "zipdocs" / batch["file"]) as zf:
+                        names = zf.namelist()
+                    if len(names) >= max(1, len(all_ids) - 2):
+                        ok = True
+                        downloaded_names.add(batch["file"])
+                        report["downloads"].append({**batch, "mode": "zip_batch",
+                                                    "entries": len(names)})
+                        print(f"zip batch: {len(names)} entries", flush=True)
+                except Exception:
+                    pass
+            if not ok:
+                for d in direct_docs:
+                    eid, name = d["id"], d["name"]
+                    res = fetch_zip([eid], f"{PLAN}_{name}.zip")
+                    if res and res["bytes"] > 1000:
+                        downloaded_names.add(res["file"])
+                        report["downloads"].append({**res, "doc": name, "mode": "zip_single"})
+                        print(f"zip: {name} ({res['bytes']} bytes)", flush=True)
+                    time.sleep(PACE_S)
+            browser.close()
+            got = len(downloaded_names)
+            report["summary"] = {"files_downloaded": got, "mode": "zip"}
+            (OUT / "fetch_report.json").write_text(
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
+            return 0 if got else 1
+
         # --- 3. expand the documents accordion and click every download
         #     affordance, so each request is issued by the page itself ---
         req_log = []
