@@ -69,7 +69,7 @@ jobs:
           MAVAT_MP_ID: ${{ inputs.mp_id }}
           MAVAT_PLAN_NUMBER: ${{ inputs.plan_number }}
           MAVAT_FETCH_MODE: ${{ inputs.fetch_mode }}
-          MAVAT_DOC_LIST: ${{ inputs.doc_list != "" && inputs.doc_list || format("data/mavat_doclist_{0}.json", inputs.plan_number) }}
+          MAVAT_DOC_LIST: ${{ inputs.doc_list != '' && inputs.doc_list || format('data/mavat_doclist_{0}.json', inputs.plan_number) }}
         run: python3 scripts/vpn/mavat_docs.py
 
       - name: Upload documents artifact
