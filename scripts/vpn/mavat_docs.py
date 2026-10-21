@@ -189,7 +189,9 @@ def main():
             from urllib.parse import quote
             for i, d in enumerate(direct_docs):
                 eid, name = d["id"], d["name"]
-                fn_variants = [f"{PLAN}_{name}.pdf", f"DOC_{eid}.pdf", ""]
+                fn_variants = [f"{PLAN}_{name}.pdf",
+                               f"{PLAN}_{name}_".encode().decode() ,
+                               f"DOC_{eid}.pdf", ""]
                 try:
                     r = None
                     for fn in fn_variants:
@@ -485,8 +487,8 @@ def main():
                     return None
 
             expanded = {}
-            for label in ("מסמכי התכנית", "מסמכי מידע מנהלי", "נוסחי פרסום",
-                          "מסמכי רקע לתכנית"):
+            for label in ("מסמכי התכנית", "מסמכים מופקדים", "מסמכי מידע מנהלי",
+                          "נוסחי פרסום", "מסמכי רקע לתכנית"):
                 expanded[label] = expand(label)
             if not expanded.get("מסמכי רקע לתכנית"):
                 report["failures"].append({"stage": "expand", "pattern": "מסמכי רקע לתכנית",
@@ -504,6 +506,33 @@ def main():
                         continue
             except Exception:
                 pass
+            # click each background-doc row by its visible name; the page
+            # issues the exact Attacments URL itself (guessed fn 404s)
+            bg_names = ["בינוי ופיתוח", "בנין לשימור", "חוות דעת כלכלית",
+                        "מצב מאושר", "נספח חברתי", "נספח סביבה", "סקר עצים",
+                        "תנועה", "בינוי", "נוף"]
+            for nm in bg_names:
+                try:
+                    for el in page.get_by_text(re.compile(f"^{nm}$")).all():
+                        try:
+                            if not el.is_visible():
+                                continue
+                            dl = click_and_wait(el, 5000)
+                            if dl:
+                                path = OUT / "zips" / ("bg_" + safe_name(dl.suggested_filename))
+                                path.parent.mkdir(parents=True, exist_ok=True)
+                                dl.save_as(str(path))
+                                downloaded_names.add(path.name)
+                                report["downloads"].append({"file": path.name, "via": "bg_row_click",
+                                                            "bytes": path.stat().st_size})
+                                print(f"download: {path.name}", flush=True)
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+                time.sleep(1)
+
             page.screenshot(path=str(OUT / "clickdocs_expanded.png"), full_page=True)
 
             # dump the page's own document links/rows so exact download
@@ -630,7 +659,9 @@ def main():
             report["inpage"] = []
 
             def inpage_get(eid, name):
-                fn_variants = [f"{PLAN}_{name}.pdf", f"DOC_{eid}.pdf", ""]
+                fn_variants = [f"{PLAN}_{name}.pdf",
+                               f"{PLAN}_{name}_".encode().decode() ,
+                               f"DOC_{eid}.pdf", ""]
                 for fn in fn_variants:
                     url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
                            f"&fn={_quote(fn)}&edn=temp-default&pn={PLAN}")
