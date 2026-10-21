@@ -375,6 +375,107 @@ def main():
             print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
             return 0 if got else 1
 
+
+        # --- 2d. clickdocs mode: drive the page's own download UI ------
+        # The relay approach (zipAttacments with a captured token) is
+        # captcha-bound and was stopped ({"CaptchaNotValid":true} on
+        # replay, run 39552931669). This mode only clicks the same
+        # public buttons a visitor clicks; every request is issued by
+        # the page itself with its own per-click token.
+        if os.environ.get("MAVAT_FETCH_MODE") == "clickdocs":
+            print("clickdocs mode: page-issued downloads only", flush=True)
+
+            def expand(label):
+                for el in page.get_by_text(re.compile(f"^{label}$")).all():
+                    try:
+                        if el.is_visible():
+                            el.click(timeout=6000)
+                            time.sleep(1.5)
+                            return True
+                    except Exception:
+                        continue
+                report["failures"].append({"stage": "expand", "pattern": label,
+                                           "error": "not_clickable"})
+                return False
+
+            for label in ("מסמכי התכנית", "מסמכי רקע לתכנית", "מסמכי מידע מנהלי"):
+                expand(label)
+            page.screenshot(path=str(OUT / "clickdocs_expanded.png"), full_page=True)
+
+            # every visible category ZIP link: each is a distinct
+            # page-issued download of one document category
+            idx = 0
+            for el in page.get_by_text(re.compile("הורדת קבצים ב ZIP")).all():
+                try:
+                    if not el.is_visible():
+                        continue
+                    idx += 1
+                    with page.expect_download(timeout=90000) as dl_info:
+                        el.click(timeout=6000)
+                    dl = dl_info.value
+                    path = OUT / "zips" / f"cat{idx:02d}_" + safe_name(dl.suggested_filename)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    dl.save_as(str(path))
+                    downloaded_names.add(path.name)
+                    report["downloads"].append({"file": path.name, "via": "category_zip",
+                                                "bytes": path.stat().st_size})
+                    print(f"download: {path.name}", flush=True)
+                    time.sleep(PACE_S)
+                except Exception:
+                    continue
+
+            # decisions tab: meeting decision documents, if the page
+            # offers them for download
+            try:
+                for el in page.get_by_text(re.compile("^דיונים$")).all():
+                    try:
+                        if el.is_visible():
+                            el.click(timeout=6000)
+                            time.sleep(2)
+                            break
+                    except Exception:
+                        continue
+                page.screenshot(path=str(OUT / "clickdocs_meetings.png"), full_page=True)
+                idx2 = 0
+                for selector in ["a", "button", "img"]:
+                    for el in page.locator(selector).all():
+                        try:
+                            if not el.is_visible():
+                                continue
+                            desc = ((el.get_attribute("title") or "") + " " +
+                                    (el.get_attribute("class") or "") + " " +
+                                    (el.inner_text() or "")[:40])
+                            if not re.search(r"הורד|pdf|PDF|מסמך|ייבוא|download", desc, re.I):
+                                continue
+                            idx2 += 1
+                            try:
+                                with page.expect_download(timeout=45000) as dl_info:
+                                    el.click(timeout=5000)
+                            except Exception:
+                                continue
+                            dl = dl_info.value
+                            path = OUT / "zips" / f"dec{idx2:02d}_" + safe_name(dl.suggested_filename)
+                            path.parent.mkdir(parents=True, exist_ok=True)
+                            dl.save_as(str(path))
+                            downloaded_names.add(path.name)
+                            report["downloads"].append({"file": path.name, "via": "meetings_tab",
+                                                        "bytes": path.stat().st_size})
+                            print(f"download: {path.name}", flush=True)
+                            time.sleep(PACE_S)
+                        except Exception:
+                            continue
+            except Exception as exc:
+                report["failures"].append({"stage": "meetings_tab",
+                                           "error": type(exc).__name__})
+
+            browser.close()
+            got = len(downloaded_names)
+            report["summary"] = {"files_downloaded": got, "mode": "clickdocs"}
+            (OUT / "fetch_report.json").write_text(
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
+            return 0 if got else 1
+
         # --- 3. expand the documents accordion and click every download
         #     affordance, so each request is issued by the page itself ---
         req_log = []

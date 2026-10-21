@@ -99,7 +99,7 @@ def _s(v):
     return str(v).strip()
 
 
-def api_snapshot(ctx, mp_id, page_url):
+def api_snapshot(page, mp_id, page_url):
     """Fetch the plan's own public SV4 data JSON (the same endpoint the
     plan page itself calls) using the browser context's session, and
     reduce it to a diff-able snapshot: signed/background document list,
@@ -108,11 +108,18 @@ def api_snapshot(ctx, mp_id, page_url):
     These lists are NOT fully visible in the page text, so the page-text
     fingerprint alone misses new background documents and new committee
     decisions (verified 2026-10-21)."""
-    r = ctx.request.get(API.format(mp_id=mp_id),
-                        headers={"Referer": page_url}, timeout=60000)
-    if r.status != 200:
-        raise RuntimeError(f"api_status_{r.status}")
-    data = json.loads(r.body().decode("utf-8", "replace"))
+    # in-page fetch: the plan page itself calls this endpoint, so the
+    # page JS context (session cookies + any page-set headers) is the
+    # only context that reliably gets 200 (ctx.request gets 401/403,
+    # verified in run 39550270443).
+    data = page.evaluate(
+        """async (url) => {
+          const r = await fetch(url, {credentials: 'include'});
+          if (r.status !== 200) return {__status: r.status};
+          return await r.json();
+        }""", API.format(mp_id=mp_id))
+    if not isinstance(data, dict) or data.get("__status"):
+        raise RuntimeError(f"api_status_{(data or {}).get('__status')}")
 
     docs = []
     for arr in API_DOC_ARRAYS:
@@ -204,7 +211,7 @@ def main():
             failures = 0
             prev = old.get(num, {})
             try:
-                api = api_snapshot(ctx, mp_id, SV4.format(mp_id=mp_id))
+                api = api_snapshot(page, mp_id, SV4.format(mp_id=mp_id))
                 info["api"] = api
             except Exception as exc:
                 print(f"{num}: api snapshot failed ({type(exc).__name__}) - "
