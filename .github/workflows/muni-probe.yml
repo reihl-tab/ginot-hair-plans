@@ -1,0 +1,59 @@
+name: Jerusalem municipal public pages probe (VPN)
+
+# Read-only probe of public Jerusalem municipality pages (building-file
+# archive / permit-file tracking) through the owner-operated L2TP/IPsec
+# tunnel. Same anti-bot rules as mavat-watch: public pages only, no
+# login, any hard challenge stops the run. Manual dispatch only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Comma-separated public URLs to GET"
+        required: true
+        default: "https://tor.jerusalem.muni.il/Service.aspx?channel=3554&Id=1324"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: muni-probe
+  cancel-in-progress: false
+
+jobs:
+  muni-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install VPN transport packages
+        run: |
+          sudo apt-get update -qq > /dev/null 2>&1
+          sudo apt-get install -y strongswan xl2tpd ppp curl python3-requests > /dev/null 2>&1
+
+      - name: Bring up owner-operated L2TP/IPsec tunnel
+        env:
+          VPN_L2TP_SERVER: ${{ secrets.VPN_L2TP_SERVER }}
+          VPN_L2TP_PSK: ${{ secrets.VPN_L2TP_PSK }}
+          VPN_L2TP_USERNAME: ${{ secrets.VPN_L2TP_USERNAME }}
+          VPN_L2TP_PASSWORD: ${{ secrets.VPN_L2TP_PASSWORD }}
+        run: sudo --preserve-env=VPN_L2TP_SERVER,VPN_L2TP_PSK,VPN_L2TP_USERNAME,VPN_L2TP_PASSWORD python3 scripts/vpn/l2tp.py up
+
+      - name: Probe public pages
+        env:
+          PYTHONUNBUFFERED: "1"
+          PROBE_URLS: ${{ inputs.urls }}
+        run: python3 scripts/vpn/muni_probe.py
+
+      - name: Upload probe artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: muni-probe
+          path: /tmp/muni_probe/
+          if-no-files-found: ignore
+
+      - name: Tear down tunnel and remove generated secret material
+        if: always()
+        run: sudo python3 scripts/vpn/l2tp.py down
