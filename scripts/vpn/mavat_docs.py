@@ -396,12 +396,11 @@ def main():
                     if "iplan" not in url:
                         return
                     ctype = (resp.headers.get("content-type") or "").split(";")[0].lower()
-                    if ctype not in ("application/octet-stream", "application/pdf"):
+                    if ctype not in ("application/octet-stream", "application/pdf",
+                                     "application/msword",
+                                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
                         return
-                    key = (url, resp.headers.get("content-length") or "")
-                    if key in seen_bin:
-                        return
-                    seen_bin.add(key)
+                    seen_bin.add(len(seen_bin))
                     body = resp.body()
                     if not body or len(body) < 200:
                         return
@@ -439,10 +438,14 @@ def main():
             def expand(label):
                 for el in page.get_by_text(re.compile(f"^{label}$")).all():
                     try:
-                        if el.is_visible():
-                            el.click(timeout=6000)
-                            time.sleep(1.5)
-                            return True
+                        if not el.is_visible():
+                            continue
+                        try:
+                            el.click(timeout=4000)
+                        except Exception:
+                            el.evaluate("e => { let n = e; for (let i = 0; i < 5 && n; i++) { if (n.getAttribute('href') || n.onclick || n.tagName === 'A' || n.tagName === 'BUTTON') break; n = n.parentElement; } (n || e).click(); }")
+                        time.sleep(1.5)
+                        return True
                     except Exception:
                         continue
                 return False
@@ -471,22 +474,21 @@ def main():
 
             def click_and_wait(el, timeout):
                 try:
-                    with page.expect_download(timeout=20000) as dl_info:
+                    with page.expect_download(timeout=6000) as dl_info:
                         el.click(timeout=timeout)
                     return dl_info.value
                 except Exception:
                     return None
 
             idx = 0
-            clicked = set()
-            for el in page.get_by_text(re.compile("הורדת קבצים ב ZIP")).all():
+            zloc = page.get_by_text(re.compile("הורדת קבצים ב ZIP"))
+            i = 0
+            while i < zloc.count():
                 try:
+                    el = zloc.nth(i)
                     if not el.is_visible():
+                        i += 1
                         continue
-                    marker = el.evaluate("e => e.outerHTML.slice(0,400)")
-                    if marker in clicked:
-                        continue
-                    clicked.add(marker)
                     idx += 1
                     dl = click_and_wait(el, 6000)
                     if dl:
@@ -497,9 +499,10 @@ def main():
                         report["downloads"].append({"file": path.name, "via": "category_zip",
                                                     "bytes": path.stat().st_size})
                         print(f"download: {path.name}", flush=True)
-                    time.sleep(2.5)
+                    time.sleep(3)
                 except Exception:
-                    continue
+                    pass
+                i += 1
 
             # decisions accordion: open any per-document links it shows
             try:
@@ -507,7 +510,9 @@ def main():
                 idx2 = 0
                 for selector in ["a[href*='Attacments']", "a[href*='eid=']",
                                  "img[title*='הורד']", "a[title*='הורד']",
-                                 "i[title*='הורד']", "span[title*='הורד']"]:
+                                 "i[title*='הורד']", "span[title*='הורד']",
+                                 "img[src*='pdf' i]", "img[alt*='PDF' i]",
+                                 "[title*='צפיה']", "[title*='צפי']"]:
                     for el in page.locator(selector).all():
                         try:
                             if not el.is_visible():
