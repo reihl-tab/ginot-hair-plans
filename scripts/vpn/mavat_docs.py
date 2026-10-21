@@ -157,6 +157,18 @@ def main():
                 report["failures"].append({"stage": "rest_probe", "error": type(exc).__name__})
             time.sleep(PACE_S)
 
+        # --- 1b. direct-fetch mode: a committed eid list short-circuits
+        #     discovery (ids learned from the page's own SV4/1 response) ---
+        doc_list_path = os.environ.get("MAVAT_DOC_LIST", "")
+        direct_docs = []
+        if doc_list_path:
+            try:
+                with open(doc_list_path, encoding="utf-8") as fh:
+                    direct_docs = json.load(fh)["docs"]
+            except Exception as exc:
+                print(f"doc list unreadable ({type(exc).__name__})", flush=True)
+                return 1
+
         # --- 2. open the SV4 page ---
         page.goto(PAGE_URL, wait_until="domcontentloaded", timeout=60000)
         try:
@@ -171,6 +183,43 @@ def main():
             return 2
         print("plan page loaded (content check positive)", flush=True)
         page.screenshot(path=str(OUT / "page_top.png"), full_page=False)
+
+        if direct_docs:
+            print(f"direct-fetch mode: {len(direct_docs)} documents", flush=True)
+            for i, d in enumerate(direct_docs):
+                eid, name = d["id"], d["name"]
+                url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
+                       f"&fn={PLAN}_{name}.pdf&edn=temp-default&pn={PLAN}")
+                try:
+                    r = ctx.request.get(url, timeout=120000)
+                    body = r.body()
+                    ctype = (r.headers.get("content-type") or "").split(";")[0]
+                    low = body[:200000].lower()
+                    if any(m.encode() in low for m in CHALLENGE_MARKERS):
+                        raise Challenge()
+                    if r.status != 200 or not body:
+                        report["downloads"].append({"doc": name, "status": r.status, "skipped": True})
+                        continue
+                    ext = (".pdf" if body[:4] == b"%PDF" else
+                           ".zip" if body[:2] == b"PK" else
+                           ".xls" if body[:8].startswith(b"\xd0\xcf\x11\xe0") else ".bin")
+                    fname = safe_name(f"{PLAN}_{name}") + ext
+                    save_body("docs", fname, body)
+                    downloaded_names.add(fname)
+                    report["downloads"].append({"doc": name, "file": fname, "bytes": len(body), "ctype": ctype})
+                    print(f"saved {fname} ({len(body)} bytes)", flush=True)
+                except Challenge:
+                    raise
+                except Exception as exc:
+                    report["failures"].append({"stage": "direct_fetch", "doc": name, "error": type(exc).__name__})
+                time.sleep(PACE_S)
+            browser.close()
+            got = len(downloaded_names)
+            report["summary"] = {"files_downloaded": got, "mode": "direct"}
+            (OUT / "fetch_report.json").write_text(
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
+            return 0 if got else 1
 
         # --- 3. click through document-section tabs, capture downloads ---
         tab_re = re.compile(r"מסמכים|רקע|הערות|מטעם המנהל|הוראות|תשריט|נספח|הורדה|zip", re.I)
