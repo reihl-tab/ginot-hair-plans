@@ -522,10 +522,19 @@ def main():
                             continue
                 time.sleep(3)
                 page.screenshot(path=str(OUT / "clickdocs_meetings.png"), full_page=True)
+                # each meeting row hides its docs behind "קבצים מצורפים"
+                for el in page.get_by_text(re.compile("קבצים מצורפים")).all():
+                    try:
+                        if el.is_visible():
+                            el.click(timeout=4000)
+                            time.sleep(1.5)
+                    except Exception:
+                        continue
+                page.screenshot(path=str(OUT / "clickdocs_meetings2.png"), full_page=True)
                 try:
                     body_txt = page.inner_text("body")
                     k = body_txt.find("החלטות מוסדות")
-                    report["decisions_region_text"] = body_txt[k:k+1500] if k >= 0 else "header not found"
+                    report["decisions_region_text"] = body_txt[k:k+2000] if k >= 0 else "header not found"
                 except Exception:
                     pass
                 idx2 = 0
@@ -601,6 +610,8 @@ def main():
             import base64 as _b64
             from urllib.parse import quote as _quote
 
+            report["inpage"] = []
+
             def inpage_get(eid, name):
                 fn_variants = [f"{PLAN}_{name}.pdf", f"DOC_{eid}.pdf", ""]
                 for fn in fn_variants:
@@ -622,6 +633,11 @@ def main():
                                                    "error": type(exc).__name__})
                         return False
                     body = _b64.b64decode(res["b64"]) if res.get("b64") else b""
+                    report["inpage"].append({"eid": eid, "fn": fn[:30],
+                                             "status": res.get("status"),
+                                             "ctype": (res.get("ctype") or "")[:60],
+                                             "bytes": len(body),
+                                             "head": body[:40].hex()})
                     if res.get("status") != 200 or not body:
                         continue
                     low = body[:200000].lower()
