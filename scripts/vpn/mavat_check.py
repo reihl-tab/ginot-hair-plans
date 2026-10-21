@@ -58,7 +58,7 @@ def normalize(text):
 def scrape_plan(page, mp_id, num):
     page.goto(SV4.format(mp_id=mp_id), wait_until="domcontentloaded", timeout=60000)
     try:
-        page.wait_for_load_state("networkidle", timeout=45000)
+        page.wait_for_load_state("networkidle", timeout=20000)
     except Exception:
         pass
     time.sleep(2)
