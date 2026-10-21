@@ -186,12 +186,24 @@ def main():
 
         if direct_docs:
             print(f"direct-fetch mode: {len(direct_docs)} documents", flush=True)
+            from urllib.parse import quote
             for i, d in enumerate(direct_docs):
                 eid, name = d["id"], d["name"]
-                url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
-                       f"&fn={PLAN}_{name}.pdf&edn=temp-default&pn={PLAN}")
+                fn_variants = [f"{PLAN}_{name}.pdf", f"DOC_{eid}.pdf", ""]
                 try:
-                    r = ctx.request.get(url, timeout=120000)
+                    r = None
+                    for fn in fn_variants:
+                        url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
+                               f"&fn={quote(fn)}&edn=temp-default&pn={PLAN}")
+                        rr = ctx.request.get(url, timeout=120000,
+                                             headers={"Referer": PAGE_URL})
+                        if rr.status == 200:
+                            r = rr
+                            break
+                        if rr.status not in (404, 400):
+                            r = rr
+                            break
+                        r = rr
                     body = r.body()
                     ctype = (r.headers.get("content-type") or "").split(";")[0]
                     low = body[:200000].lower()
