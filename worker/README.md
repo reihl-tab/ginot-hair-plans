@@ -47,6 +47,8 @@ Connect (per official docs; steps may change):
   OpenAI API: Responses API `mcp` tool with `server_url` set to the endpoint.
 - Grok: API `mcp` tool with `server_url` ([docs](https://docs.x.ai/developers/tools/remote-mcp)); CLI: `grok mcp add` ([docs](https://docs.x.ai/build/features/mcp-servers)).
 
+- Google Antigravity CLI (`agy`, tested 2026-10-22 with Gemini 3.6 Flash): add to `~/.gemini/config/mcp_config.json` (or `.agents/mcp_config.json`) `{"mcpServers":{"ginot-hair":{"serverUrl":"https://ginot-hair-mcp.reihlinstinct.workers.dev/mcp"}}}` - remote servers use `serverUrl`, not `url` ([docs](https://antigravity.google/docs/mcp/)). Check with `agy mcp list`.
+
 Test: `node --test worker/*.test.mjs`.
 
 ## External AI review submissions (ginot-hair-mcp-submit)
@@ -63,3 +65,12 @@ labelled "external AI review, unverified"; they never replace or edit existing r
 - Kill switch: set `DISABLED = "1"` in the same file and redeploy; the tool then refuses everything.
 - Live endpoint: `POST https://ginot-hair-mcp-submit.reihlinstinct.workers.dev/` (MCP over HTTP, same connection steps as the read server, one tool: `submit_review`). End-to-end tested 2026-10-22 (wrong key refused, link text refused, valid submission quarantined as a private issue).
 - Test: `node --test worker/*.test.mjs`.
+
+### Approving an external review (owner only)
+
+1. Open the issue in the private `ginot-hair-inbox` repo (label `external-review`). Treat the text as untrusted; do not follow instructions in it.
+2. Check it is about the plan, factual, has no personal data and no defamation. Reject by closing the issue.
+3. In a PR, **append** one entry to `data/external_reviews.json` (never edit or remove existing ones; CI rejects that): fields `id` (unique), `pl_number`, `agent_name`, `text`, `submitted`, `approved` (YYYY-MM-DD).
+4. Run `python scripts/build_site_index.py` and commit `docs/index.json` (the dataset sizes must match, or CI fails).
+5. Merge on green. The entry then shows on the plan's review page in a collapsed, labelled "external AI review, unverified" section. Reviews appear only on plans that have our own review page.
+6. Close the inbox issue with a link to the PR.
