@@ -34,9 +34,13 @@ _MASKS = [
     (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}(?:/\d+)?\b"), "<ip>"),
     (re.compile(r"\b(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b"), "<ip6>"),
     (re.compile(r"\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\b"), "<mac>"),
-    (re.compile(r"\b[0-9a-fA-F]{8}_[io]\b"), "<spi>"),
-    (re.compile(r"\bSPIs?[ =:]+[0-9a-fA-F_io]+", re.IGNORECASE), "SPI <spi>"),
-    (re.compile(r"\b[0-9a-fA-F]{16,}\b"), "<hex>"),
+    # SPIs with a role suffix: 8-hex ESP (_i/_o) and 16-hex IKE (_i/_r).
+    # Lookarounds instead of \b: "_" is a word character, so \b never fires
+    # between the hex digits and the suffix (issue #120).
+    (re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{8,16}_[ior](?![0-9A-Za-z_])"), "<spi>"),
+    (re.compile(r"\bSPIs?[ =:]+(?:0x)?[0-9a-fA-F]+(?:_[ior])?(?![0-9A-Za-z_])", re.IGNORECASE),
+     "SPI <spi>"),
+    (re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{16,}(?![0-9A-Za-z])"), "<hex>"),
     (re.compile(r"\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:com|net|org|il|io|co|me)\b"), "<host>"),
     (re.compile(r"(?i)(psk|password|secret|user(?:name)?|id)\s*[=:]\s*\S+"), r"\1=<redacted>"),
     (re.compile(r"'[^']{1,80}'"), "'<id>'"),

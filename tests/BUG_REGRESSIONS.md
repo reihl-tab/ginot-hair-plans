@@ -18,6 +18,7 @@ Map coverage was split into a dedicated module and CI target by #272.
 No test-only follow-up issue is needed for these fixes: all are automated.
 
 - #285: `tests/test_permit_pipeline.py::test_checkpoint_large_payload_uses_stdin_not_argv` covers oversized checkpoint transport; `test_feed_reuses_only_complete_same_day_unchanged_details` covers freshness and changed/missing detail rejection. `tests/test_scan_checkpoint.py::test_complete_scan_resumes_details_and_checkpoints_them` covers durable detail resume.
+- #120: `tests/test_vpn_watch.py::test_mask_redacts_ike_responder_spi_issue_120` reproduces the `ipsec statusall` line that printed the IKE responder SPI (`..._r`) in clear; `test_mask_redacts_responder_spi_without_spi_keyword` and `test_event_and_status_filters_redact_responder_spi` cover the second value on a line and both watcher output paths; `test_l2tp_negotiation_summary_never_carries_spis` pins the l2tp summarizer to categories only.
 
 ## Historical audit,2026-10-22
 
