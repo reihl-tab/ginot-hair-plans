@@ -3,9 +3,9 @@
 Publication of provider geometry needs a separate terms check. This module
 neither publishes files nor changes the scheduled refresh.
 """
+import shapely
 from pyproj import Transformer
 from shapely.geometry import Polygon, mapping
-from shapely.ops import transform
 
 
 def plan_geometry(rings):
@@ -26,8 +26,8 @@ def plan_geometry(rings):
     if not geometry.is_valid or geometry.geom_type not in ("Polygon", "MultiPolygon"):
         raise ValueError("invalid planning boundary geometry")
     project = Transformer.from_crs(2039, 4326, always_xy=True).transform
-    point = transform(project, geometry.representative_point())
-    return {"geometry": mapping(transform(project, geometry)),
+    point = shapely.transform(geometry.representative_point(), project, interleaved=False)
+    return {"geometry": mapping(shapely.transform(geometry, project, interleaved=False)),
             "point": [point.x, point.y]}
 
 

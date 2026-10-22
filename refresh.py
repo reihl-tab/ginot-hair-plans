@@ -24,10 +24,10 @@ def load_council(path):
     with open(path, encoding="utf-8") as fh:
         gj = json.load(fh)
     # committed GeoJSON is WGS84; project back to EPSG:2039 for the query
+    import shapely
     from pyproj import Transformer
-    from shapely.ops import transform
     t = Transformer.from_crs("EPSG:4326", "EPSG:2039", always_xy=True)
-    return transform(t.transform, shape(gj["geometry"]))
+    return shapely.transform(shape(gj["geometry"]), t.transform, interleaved=False)
 
 
 
