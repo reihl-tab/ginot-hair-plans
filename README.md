@@ -223,3 +223,31 @@ the visitor's browser from the public ArcGIS service on request, with no polygon
 file stored in this repo or site. Source downtime does not disable the table.
 This is an unofficial information aid, not a statutory map. See
 [map design and source terms](design/plan-map.md) (#253).
+
+## MCP server (read-only)
+
+`python -m ginot.mcp_server` serves the public `docs/data.json` over stdio MCP
+(tools: `search_plans`, `get_plan`, `upcoming_objection_windows`, `data_status`).
+No network, no writes, no secrets, no planner-private files. Objection windows are
+derived from publication dates, not official deadlines.
+
+### Connecting it to an agent
+
+stdio only (runs locally; there is no hosted endpoint). Clone the repo, then add to
+Claude Desktop `claude_desktop_config.json` (or `.mcp.json` for Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "ginot-hair-plans": {
+      "command": "python3",
+      "args": ["-m", "ginot.mcp_server", "--data", "docs/data.json"],
+      "cwd": "/path/to/ginot-hair-plans",
+      "env": {"PYTHONPATH": "src"}
+    }
+  }
+}
+```
+
+Claude Code one-liner: `claude mcp add ginot-hair-plans -e PYTHONPATH=src -- python3 -m ginot.mcp_server --data docs/data.json`
+(run it from the repo root). Restart the client; the four tools then appear.
