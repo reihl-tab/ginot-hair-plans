@@ -13,9 +13,76 @@ const FIELDS = ["pl_number", "pl_name", "station_desc", "internet_short_status",
 const pub = (r) => Object.fromEntries(FIELDS.filter((k) => k in r).map((k) => [k, r[k]]));
 const clamp = (v, lo, hi, d) => Math.min(Math.max(Number.isFinite(+v) ? Math.trunc(+v) : d, lo), hi);
 
+// Hebrew search folding for search_plans. A token with a digit, a hyphen or a
+// Latin letter is never folded (plan numbers, English names): it only ever
+// matches itself, exactly. Otherwise up to 2 leading prefix letters
+// (ו ה ב כ ל מ ש - the one-letter conjunction/preposition/article set) are
+// stripped, and the plural endings ים (dropped) and ות (either dropped or
+// turned into ה, since that is the matching feminine singular ending) are
+// tried on both the original and the prefix-stripped form. A folded variant
+// is only kept with 3 or more letters left, so short cores never cause a
+// false match (e.g. "גני" must not fold-match "עוגנים": the stripped form is
+// "עוגן", not "גני", and "גני" itself has no prefix letter to strip).
+const FOLD_PREFIX = new Set(["ו", "ה", "ב", "כ", "ל", "מ", "ש"]);
+const NON_FOLDABLE = /[0-9\-A-Za-z]/;
+const tokenize = (text) => String(text).toLowerCase().split(/\s+/).filter(Boolean);
+
+function foldVariants(token) {
+  if (NON_FOLDABLE.test(token)) return new Set([token]);
+  let i = 0;
+  while (i < 2 && i < token.length && FOLD_PREFIX.has(token[i])) i++;
+  const bases = i > 0 ? [token, token.slice(i)] : [token];
+  const out = new Set();
+  for (const base of bases) {
+    out.add(base);
+    if (base.endsWith("ים")) out.add(base.slice(0, -2));
+    if (base.endsWith("ות")) { out.add(base.slice(0, -2) + "ה"); out.add(base.slice(0, -2)); }
+  }
+  const kept = new Set([...out].filter((v) => v.length >= 3));
+  return kept.size ? kept : new Set([token]);
+}
+
+// null = no match; "exact" = identical token; "folded" = share a folded variant.
+function tokenMatch(queryToken, targetToken, fold) {
+  if (queryToken === targetToken) return "exact";
+  if (!fold) return null;
+  const targetVariants = foldVariants(targetToken);
+  for (const v of foldVariants(queryToken)) if (targetVariants.has(v)) return "folded";
+  return null;
+}
+
+const SEARCH_FIELDS = ["pl_number", "pl_name", "station_desc", "entity_subtype_desc"];
+
+// A row matches only if every query token matches some token in the row (any
+// order - a bag-of-words match, same as the plain substring search it
+// replaces could cross word boundaries). The row's overall tier is "exact"
+// only when every query token matched exactly; one folded token downgrades
+// the whole row to "folded", which only fills slots left after exact rows.
+function matchRow(row, queryTokens, fold) {
+  const targetTokens = SEARCH_FIELDS.flatMap((k) => tokenize(row[k] || ""));
+  const matchedAs = [];
+  let tier = "exact";
+  for (const qt of queryTokens) {
+    let best = null, bestTarget = null;
+    for (const tt of targetTokens) {
+      const m = tokenMatch(qt, tt, fold);
+      if (m === "exact") { best = "exact"; bestTarget = tt; break; }
+      if (m === "folded" && !best) { best = "folded"; bestTarget = tt; }
+    }
+    if (!best) return null;
+    matchedAs.push(bestTarget);
+    if (best !== "exact") tier = "folded";
+  }
+  return { tier, matchedAs };
+}
+
 export const TOOLS = [
-  { name: "search_plans", description: "Search public plans by text in number/name/status/type.",
-    inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } } },
+  { name: "search_plans", description: "Search public plans by text in number/name/status/type. " +
+      "Exact whole-token matches rank first; Hebrew-folded whole-token matches (stripped prefix letters/plural endings) " +
+      "only fill remaining slots up to limit. Each result carries match: \"exact\"|\"folded\" and matched_as. " +
+      "Pass fold:false to require exact matches only.",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 },
+      fold: { type: "boolean", description: "Default true. false disables Hebrew folding (exact whole-token matches only)." } } } },
   { name: "get_plan", description: "Get one public plan by pl_number.",
     inputSchema: { type: "object", properties: { pl_number: { type: "string" } }, required: ["pl_number"] } },
   { name: "upcoming_objection_windows", description: "Deposit-stage plans whose DERIVED objection window ends within N days. " + NOTE,
@@ -26,11 +93,20 @@ export const TOOLS = [
 export function callTool(data, name, args = {}) {
   const rows = data.rows || [];
   if (name === "search_plans") {
-    const q = String(args.query || "").trim().toLowerCase();
     const limit = clamp(args.limit, 1, 50, 20);
-    const hits = rows.filter((r) => !q || ["pl_number", "pl_name", "station_desc", "entity_subtype_desc"]
-      .map((k) => r[k] || "").join(" ").toLowerCase().includes(q));
-    return { total_matches: hits.length, plans: hits.slice(0, limit).map(pub) };
+    const queryTokens = tokenize(args.query || "");
+    if (!queryTokens.length) return { total_matches: rows.length, plans: rows.slice(0, limit).map(pub) };
+    const fold = args.fold !== false;
+    const exactHits = [], foldedHits = [];
+    for (const r of rows) {
+      const m = matchRow(r, queryTokens, fold);
+      if (m) (m.tier === "exact" ? exactHits : foldedHits).push({ row: r, matchedAs: m.matchedAs });
+    }
+    const ordered = [...exactHits.map((h) => ({ ...h, tier: "exact" })), ...foldedHits.map((h) => ({ ...h, tier: "folded" }))];
+    return {
+      total_matches: ordered.length,
+      plans: ordered.slice(0, limit).map(({ row, matchedAs, tier }) => ({ ...pub(row), match: tier, matched_as: matchedAs })),
+    };
   }
   if (name === "get_plan") {
     const r = rows.find((x) => x.pl_number === String(args.pl_number || "").trim());

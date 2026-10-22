@@ -17,6 +17,50 @@ test("only public fields exposed", () => {
   assert.throws(() => callTool(data, "get_plan", { pl_number: "zz" }), /not found/);
 });
 
+test("Hebrew folding: exact ranks before folded, phrase queries still match, fold:false and non-foldable tokens", () => {
+  const plans = { rows: [
+    { pl_number: "H-1", pl_name: "שכונת בני בתירא" },
+    { pl_number: "H-2", pl_name: "התחדשות עירונית רמת גן" },
+    { pl_number: "H-3", pl_name: "בית ילדים חדש" },
+    { pl_number: "H-4", pl_name: "גן ילד קטן" },
+    { pl_number: "H-5", pl_name: "עוגנים בנמל" },
+  ] };
+  // Two-word exact phrase still finds exactly one plan (bag-of-tokens, not substring).
+  const phrase = callTool(plans, "search_plans", { query: "בני בתירא" });
+  assert.equal(phrase.total_matches, 1);
+  assert.equal(phrase.plans[0].pl_number, "H-1");
+  assert.equal(phrase.plans[0].match, "exact");
+
+  const urban = callTool(plans, "search_plans", { query: "התחדשות עירונית" });
+  assert.equal(urban.total_matches, 1);
+  assert.equal(urban.plans[0].pl_number, "H-2");
+
+  // "גני" (3 letters, no foldable prefix/suffix) must NOT fold-match
+  // "עוגנים" (folds to "עוגן", not "גני").
+  const noMatch = callTool(plans, "search_plans", { query: "גני" });
+  assert.equal(noMatch.total_matches, 0);
+
+  // Singular query folds to match a plural token, and ranks after the exact hit.
+  const folded = callTool(plans, "search_plans", { query: "ילד" });
+  assert.equal(folded.total_matches, 2);
+  assert.equal(folded.plans[0].pl_number, "H-4");
+  assert.equal(folded.plans[0].match, "exact");
+  assert.equal(folded.plans[1].pl_number, "H-3");
+  assert.equal(folded.plans[1].match, "folded");
+  assert.deepEqual(folded.plans[1].matched_as, ["ילדים"]);
+
+  // fold:false keeps only the exact hit.
+  const exactOnly = callTool(plans, "search_plans", { query: "ילד", fold: false });
+  assert.equal(exactOnly.total_matches, 1);
+  assert.equal(exactOnly.plans[0].pl_number, "H-4");
+
+  // A token with digits/hyphen/Latin letters is never folded: it only matches itself.
+  const planNumber = callTool({ rows: [{ pl_number: "101-1377753" }, { pl_number: "101-1377754" }] },
+    "search_plans", { query: "101-1377753" });
+  assert.equal(planNumber.total_matches, 1);
+  assert.equal(planNumber.plans[0].pl_number, "101-1377753");
+});
+
 test("limit clamped", () => {
   const rows = Array.from({ length: 80 }, (_, i) => ({ pl_number: String(i) }));
   assert.equal(callTool({ rows }, "search_plans", { limit: 9999 }).plans.length, 50);
