@@ -17,6 +17,113 @@ test("only public fields exposed", () => {
   assert.throws(() => callTool(data, "get_plan", { pl_number: "zz" }), /not found/);
 });
 
+test("Hebrew folding: exact ranks before folded, phrase queries still match, fold:false and non-foldable tokens", () => {
+  const plans = { rows: [
+    { pl_number: "H-1", pl_name: "שכונת בני בתירא" },
+    { pl_number: "H-2", pl_name: "התחדשות עירונית רמת גן" },
+    { pl_number: "H-3", pl_name: "בית ילדים חדש" },
+    { pl_number: "H-4", pl_name: "גן ילד קטן" },
+    { pl_number: "H-5", pl_name: "עוגנים בנמל" },
+  ] };
+  // Two-word exact phrase still finds exactly one plan (bag-of-tokens, not substring).
+  const phrase = callTool(plans, "search_plans", { query: "בני בתירא" });
+  assert.equal(phrase.total_matches, 1);
+  assert.equal(phrase.plans[0].pl_number, "H-1");
+  assert.equal(phrase.plans[0].match, "exact");
+
+  const urban = callTool(plans, "search_plans", { query: "התחדשות עירונית" });
+  assert.equal(urban.total_matches, 1);
+  assert.equal(urban.plans[0].pl_number, "H-2");
+
+  // "גני" (3 letters, no foldable prefix/suffix) must NOT exact- or fold-match
+  // "עוגנים" (folds to "עוגן", not "גני") - it only surfaces as a low-confidence
+  // partial (substring) hit, the old pre-folding search's own behavior for this
+  // exact case ("גני" is literally contained in "עוגנים").
+  const noWholeTokenMatch = callTool(plans, "search_plans", { query: "גני" });
+  assert.equal(noWholeTokenMatch.total_matches, 1);
+  assert.equal(noWholeTokenMatch.plans[0].match, "partial");
+  assert.equal(noWholeTokenMatch.plans[0].pl_number, "H-5");
+
+  // Singular query folds to match a plural token, and ranks after the exact hit.
+  const folded = callTool(plans, "search_plans", { query: "ילד" });
+  assert.equal(folded.total_matches, 2);
+  assert.equal(folded.plans[0].pl_number, "H-4");
+  assert.equal(folded.plans[0].match, "exact");
+  assert.equal(folded.plans[1].pl_number, "H-3");
+  assert.equal(folded.plans[1].match, "folded");
+  assert.deepEqual(folded.plans[1].matched_as, ["ילדים"]);
+
+  // fold:false skips the folded tier, but partial (substring) hits still fill in: "ילד"
+  // is a substring of "ילדים", so H-3 still comes back, now ranked as "partial" behind
+  // the exact hit rather than disappearing or counting as "folded".
+  const exactOnly = callTool(plans, "search_plans", { query: "ילד", fold: false });
+  assert.equal(exactOnly.total_matches, 2);
+  assert.equal(exactOnly.plans[0].pl_number, "H-4");
+  assert.equal(exactOnly.plans[0].match, "exact");
+  assert.equal(exactOnly.plans[1].pl_number, "H-3");
+  assert.equal(exactOnly.plans[1].match, "partial");
+
+  // A token with digits/hyphen/Latin letters is never folded: it only matches itself.
+  const planNumber = callTool({ rows: [{ pl_number: "101-1377753" }, { pl_number: "101-1377754" }] },
+    "search_plans", { query: "101-1377753" });
+  assert.equal(planNumber.total_matches, 1);
+  assert.equal(planNumber.plans[0].pl_number, "101-1377753");
+});
+
+test("partial tier: old substring behavior as a fallback, superset of it, fold:false keeps it", () => {
+  const plans = { rows: [
+    { pl_number: "101-1348069", pl_name: "מתחם מגורים" },
+    { pl_number: "101-9999999", pl_name: "שונה" },
+    { pl_number: "H-10", pl_name: "גינון ציבורי" },
+    { pl_number: "H-11", pl_name: "ילד קטן" },
+  ] };
+
+  // A plan-number query without its "101-" prefix: not a whole-token match (the row's
+  // token is "101-1348069"), but it IS a substring of that token - the exact regression
+  // Instinct found live ("1348069" 1 -> 0). Must come back as a partial hit.
+  const byNumber = callTool(plans, "search_plans", { query: "1348069" });
+  assert.equal(byNumber.total_matches, 1);
+  assert.equal(byNumber.plans[0].pl_number, "101-1348069");
+  assert.equal(byNumber.plans[0].match, "partial");
+  assert.deepEqual(byNumber.plans[0].matched_as, ["1348069"]);
+
+  // A partial word, substring of a longer unrelated token ("גינ" inside "גינון") -
+  // the old substring search found this; whole-token exact/folded does not.
+  const byPartialWord = callTool(plans, "search_plans", { query: "גינ" });
+  assert.equal(byPartialWord.total_matches, 1);
+  assert.equal(byPartialWord.plans[0].pl_number, "H-10");
+  assert.equal(byPartialWord.plans[0].match, "partial");
+
+  // Ranking: exact, then folded, then partial, each row in exactly one tier (no dupes).
+  const ranked = callTool(plans, "search_plans", { query: "ילד" });
+  assert.equal(ranked.total_matches, 1);
+  assert.equal(ranked.plans[0].pl_number, "H-11");
+  assert.equal(ranked.plans[0].match, "exact");
+
+  // fold:false still keeps the partial tier (fold:false = exact whole-token + partial only).
+  const noFold = callTool(plans, "search_plans", { query: "1348069", fold: false });
+  assert.equal(noFold.total_matches, 1);
+  assert.equal(noFold.plans[0].match, "partial");
+});
+
+test("partial tier: result set is always a superset of the old plain-substring search", () => {
+  const oldSubstringSearch = (rows, q) => rows.filter((r) => ["pl_number", "pl_name", "station_desc", "entity_subtype_desc"]
+    .map((k) => r[k] || "").join(" ").toLowerCase().includes(q.trim().toLowerCase()));
+  const plans = { rows: [
+    { pl_number: "H-1", pl_name: "שכונת בני בתירא" },
+    { pl_number: "H-2", pl_name: "התחדשות עירונית רמת גן" },
+    { pl_number: "H-3", pl_name: "בית ילדים חדש" },
+    { pl_number: "H-4", pl_name: "גן ילד קטן" },
+    { pl_number: "H-5", pl_name: "עוגנים בנמל" },
+    { pl_number: "101-1348069", pl_name: "מתחם מגורים" },
+  ] };
+  for (const q of ["מלון", "גינ", "ילד", "1348069", "בנמל", "עוגנים"]) {
+    const oldCount = oldSubstringSearch(plans.rows, q).length;
+    const newCount = callTool(plans, "search_plans", { query: q }).total_matches;
+    assert.ok(newCount >= oldCount, `query "${q}": new ${newCount} should be >= old ${oldCount}`);
+  }
+});
+
 test("limit clamped", () => {
   const rows = Array.from({ length: 80 }, (_, i) => ({ pl_number: String(i) }));
   assert.equal(callTool({ rows }, "search_plans", { limit: 9999 }).plans.length, 50);
