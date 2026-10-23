@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 from shapely.geometry import Point, shape
 
@@ -41,3 +43,18 @@ def test_only_public_fields_are_copied():
                                 "geometry": {"rings": [square(220000, 630000, 100)]}}])
     assert "owner_email" not in data["features"][0]["properties"]
     assert len(data["features"]) == 1
+
+
+def test_plan_geometry_raises_no_shapely_deprecation_warning():
+    """Issue #330: shapely.ops.transform() is deprecated in shapely 2.2+.
+
+    Scoped to shapely's own DeprecationWarning (matching pytest.ini's
+    `filterwarnings = error::DeprecationWarning:shapely`): escalating every
+    DeprecationWarning here, including ones from other libraries' older
+    numpy usage on Python 3.10, fails for a reason unrelated to this issue.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        warnings.filterwarnings("error", category=DeprecationWarning, module=r"shapely(\.|$)")
+        result = plan_geometry([square(220000, 630000, 100)])
+    assert result is not None
