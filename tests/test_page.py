@@ -435,3 +435,41 @@ def test_favicon_committed_fallback_files_decode_at_expected_sizes():
         assert image.format == 'PNG' and image.size == size
         image.verify()
     assert '<svg' in (root / 'favicon.svg').read_text()
+
+
+def test_today_il_helper_uses_jerusalem_not_utc(monkeypatch):
+    """Issue #331: today_il() must read Asia/Jerusalem, not the runner's UTC clock."""
+    import datetime as dt
+
+    from ginot import dates
+
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = dt.datetime(2026, 7, 1, 21, 30, 0, tzinfo=dt.timezone.utc)
+            return base.astimezone(tz) if tz else base
+
+    monkeypatch.setattr(dates.datetime, "datetime", Frozen)
+    # 21:30 UTC is already 00:30 the next day in Israel (summer, UTC+3)
+    assert dates.today_il() == dt.date(2026, 7, 2)
+
+
+def test_sort_rows_deadline_equal_to_utc_today_is_not_open_in_israel(monkeypatch):
+    """Issue #331 regression test: a deadline equal to the UTC date, but
+    already one day in the past by the Israel clock, must not be flagged as
+    an open objection window."""
+    import datetime as dt
+
+    from ginot import dates
+
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = dt.datetime(2026, 7, 1, 21, 30, 0, tzinfo=dt.timezone.utc)
+            return base.astimezone(tz) if tz else base
+
+    monkeypatch.setattr(dates.datetime, "datetime", Frozen)
+    utc_today = "2026-07-01"  # the runner's (wrong) date at this instant
+    row = _row("deadline-is-utc-today", "הפקדה להתנגדויות", dep="2026-05-01", deadline=utc_today)
+    out = page.sort_rows([row])
+    assert out[0]["_open_obj"] is False

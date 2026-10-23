@@ -25,6 +25,7 @@ import json
 import subprocess
 import time
 import urllib.parse
+from zoneinfo import ZoneInfo
 
 DATASET = "76f0e069-f269-46fc-bcc8-f704ebbf17ff"
 ROWS_URL = f"https://www.over.org.il/api/append/{DATASET}/datastore_search"
@@ -199,7 +200,7 @@ def main():
             records[rec["tik_num"]] = rec
 
     payload = {
-        "generated": datetime.date.today().isoformat(),
+        "generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
         "source": ("over.org.il (גרסאות לעם) mirror of the Jerusalem "
                    "municipality ykpubdata licensing viewer"),
         "mirror_table": TABLE,

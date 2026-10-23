@@ -11,6 +11,7 @@ import datetime
 import json
 import os
 import sys
+from zoneinfo import ZoneInfo
 
 DATA_DIR = "data"
 OUT = "docs/index.json"
@@ -61,7 +62,7 @@ def scan(data_dir=DATA_DIR):
 
 
 def build(data_dir=DATA_DIR, out=OUT):
-    payload = {"generated": datetime.date.today().isoformat(),
+    payload = {"generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
                "note": "auto-generated from repo folder state (issue #152) - do not edit by hand",
                "datasets": scan(data_dir)}
     with open(out, "w", encoding="utf-8") as fh:

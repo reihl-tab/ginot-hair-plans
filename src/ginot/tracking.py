@@ -11,6 +11,8 @@ import datetime
 import json
 import os
 
+from .dates import today_il
+
 STATES = ("new", "reviewed", "objection_filed", "no_objection_needed", "urgent")
 UNDECIDED = ("new", "reviewed")
 URGENT_WITHIN_DAYS = 30
@@ -40,7 +42,7 @@ def _days_to(date_iso: str, today: datetime.date) -> int | None:
 def merge(rows: list[dict], states: dict, today: datetime.date | None = None) -> tuple[list[dict], dict]:
     """Attach tracking fields to rows; add defaults for plans never seen.
     Returns (rows, states) - states may have gained defaults (caller saves)."""
-    today = today or datetime.date.today()
+    today = today or today_il()
     changed = False
     for r in rows:
         num = r["pl_number"]
@@ -61,5 +63,5 @@ def merge(rows: list[dict], states: dict, today: datetime.date | None = None) ->
 
 def set_state(states: dict, pl_number: str, state: str, note: str = "") -> dict:
     assert state in STATES, state
-    states[pl_number] = {"state": state, "updated": datetime.date.today().isoformat(), "note": note}
+    states[pl_number] = {"state": state, "updated": today_il().isoformat(), "note": note}
     return states

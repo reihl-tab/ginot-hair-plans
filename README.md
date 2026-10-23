@@ -121,7 +121,7 @@ Served from `https://reihlinstinct.github.io/ginot-hair-plans/` with
 | File | Contents |
 | --- | --- |
 | `data.json` | Full dataset: `{generated, rows[], changes[], permits[]}` - field names as they arrive from iplan / the municipal permit search |
-| `open.json` | Open plans only (still in the planning process; definition: `station_desc != "אישור"`). `{generated, definition, count, plans[]}`, each row with `in_objection_period` |
+| `open.json` | Open plans only (still in the planning process; definition: `station_desc != "אישור"`). `{generated, definition, count, plans[]}`, each row with `in_objection_period` - evaluated as of `generated` (Israel time); to recompute "now" from scratch, derive it from `objection_deadline_derived_60d_from_publication` instead |
 | `feed.xml` | Atom feed of new/changed plans |
 | `badge/*.json` | shields.io endpoints (plan count, per-status counts, updated date) |
 

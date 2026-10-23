@@ -9,7 +9,6 @@ The refresh is designed to run from any free scheduler (see README): it is a
 plain script with no GitHub Actions dependency.
 """
 import argparse
-import datetime
 import json
 import os
 import sys
@@ -18,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from shapely.geometry import shape
 
 from ginot import diff, iplan, outputs, page, tracking
+from ginot.dates import today_il
 
 
 def load_council(path):
@@ -83,7 +83,7 @@ def main():
     prepared_map = feature_collection(features)
     os.makedirs(args.site, exist_ok=True)
     with open(f"{args.site}/plan-points.json", "w", encoding="utf-8") as points_file:
-        json.dump({"generated": datetime.date.today().isoformat(),
+        json.dump({"generated": today_il().isoformat(),
                    "source": "Planning Administration public ArcGIS",
                    "missing_geometry": prepared_map["missing_geometry"],
                    "points": [f["properties"] for f in prepared_map["features"]]},
@@ -121,10 +121,10 @@ def main():
             old_rows = json.load(fh)["rows"]
     changes = diff.diff_snapshots(old_rows, rows)
     with open(f"{args.out}/changes.json", "w", encoding="utf-8") as fh:
-        json.dump({"date": datetime.date.today().isoformat(), "changes": changes},
+        json.dump({"date": today_il().isoformat(), "changes": changes},
                   fh, ensure_ascii=False)
     with open(snap_path, "w", encoding="utf-8") as fh:
-        json.dump({"date": datetime.date.today().isoformat(), "rows": rows,
+        json.dump({"date": today_il().isoformat(), "rows": rows,
                    "plans_77_78": slim}, fh, ensure_ascii=False)
     import subprocess
     subprocess.run([sys.executable, "scripts/build_site_index.py"], check=False)
@@ -133,7 +133,7 @@ def main():
     badge_dir = os.path.join(args.site, "badge")
     os.makedirs(badge_dir, exist_ok=True)
     for name, msg, color in [("plans", str(len(rows)), "blue"),
-                             ("updated", datetime.date.today().isoformat(), "green")]:
+                             ("updated", today_il().isoformat(), "green")]:
         with open(os.path.join(badge_dir, f"{name}.json"), "w") as fh:
             json.dump({"schemaVersion": 1, "label": name, "message": msg, "color": color}, fh)
     # per-status plan-count badges (stable slugs for README links)
