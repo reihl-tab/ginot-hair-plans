@@ -16,6 +16,7 @@ import json
 import subprocess
 import sys
 import time
+from zoneinfo import ZoneInfo
 
 URL = "https://apps.land.gov.il/TabaSearch/api/SerachPlans/GetPlans"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
@@ -110,7 +111,7 @@ def main():
         if (i + 1) % 25 == 0:
             print(f"[{i+1}/{len(numbers)}] ok, {len(result)} with land data")
 
-    payload = {"generated": datetime.date.today().isoformat(),
+    payload = {"generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
                "source": "Israel Land Authority TabaSearch public API",
                "plans": result}
     with open(args.out, "w", encoding="utf-8") as fh:

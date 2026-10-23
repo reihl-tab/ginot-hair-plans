@@ -16,6 +16,7 @@ import json
 import urllib.parse as _urlparse_mod
 
 from . import __version__
+from .dates import today_il
 
 URGENT_DAYS = 30  # objection-window days for the urgent row (issue #153)
 ACTIVE_STATUSES = ("הפקדה", "תנאים", "הכרעה", "בדיקה", "בהליך")
@@ -269,7 +270,7 @@ def sort_rows(rows: list[dict], today: str | None = None) -> list[dict]:
     """Default table order: derived objection deadline, farthest first; rows
     without a deadline sort below those with one (then newest entry first).
     Annotates each row with _rank (1-based) and _open_obj (window open today)."""
-    today = today or datetime.date.today().isoformat()
+    today = today or today_il().isoformat()
     for r in rows:
         r["_open_obj"] = _is_open_objection(r, today)
     with_dl = sorted((r for r in rows if _iso(r.get("objection_deadline_derived_60d_from_publication"))),
@@ -854,7 +855,7 @@ def render_site(rows: list[dict], changes: list[dict], out_dir: str,
             reviews[m.group(1)] = f"reviews/talking_points_{m.group(1)}.html"
             with open(path, encoding="utf-8") as rf:
                 review_pages[m.group(1)] = rf.read()
-    generated = datetime.date.today().isoformat()
+    generated = today_il().isoformat()
     permits = []
     if permits_path:
         try:
