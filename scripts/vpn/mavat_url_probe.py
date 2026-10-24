@@ -5,6 +5,7 @@ background document? The page's own clicks issue eid=<ID-space>&fn=<truncated>
 far. Opens the public SV4 plan page (establishes the same session the page
 uses), then in-page fetches a small candidate matrix for ONE doc and reports
 status/ctype/bytes per candidate. Public doc, same session as the page."""
+
 import json, os, sys, time
 from pathlib import Path
 from urllib.parse import quote
@@ -20,14 +21,16 @@ SV4 = f"https://mavat.iplan.gov.il/SV4/1/{MP_ID}/310"
 BASE = "https://mavat.iplan.gov.il"
 
 # doc under test: נספח בינוי
-DOC_ID = "1001136679037"          # rsPlanDocsGen ID
-DOC_ATT = "1000036366767"         # rsPlanDocsGen ATTACHMENT_ID
+DOC_ID = "1001136679037"  # rsPlanDocsGen ID
+DOC_ATT = "1000036366767"  # rsPlanDocsGen ATTACHMENT_ID
 DOC_NAME = "בינוי"
 DOC_INFO = "נספח בינוי\r\nמחייב לעניין מיקום, שימושים, נסיגות ושימור - חתום להפקדה"
+
 
 def trunc_bytes(s, n):
     """Truncate like the page seems to: cut the UTF-8 string at n bytes."""
     return s.encode("utf-8")[:n].decode("utf-8", errors="ignore")
+
 
 fns = [
     f"{PLAN}_{DOC_NAME}",
@@ -43,8 +46,8 @@ fns = [
 CANDS = []
 for eid in (DOC_ID, DOC_ATT):
     for fn in fns:
-        CANDS.append((eid, fn, False))   # no edn/pn (page-issued shape)
-CANDS.append((DOC_ID, f"{PLAN}_{DOC_NAME}", True))   # with edn/pn
+        CANDS.append((eid, fn, False))  # no edn/pn (page-issued shape)
+CANDS.append((DOC_ID, f"{PLAN}_{DOC_NAME}", True))  # with edn/pn
 CANDS.append((DOC_ATT, f"{PLAN}_{DOC_NAME}", True))
 
 
@@ -53,9 +56,12 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--no-sandbox"])
         ctx = browser.new_context(
-            user_agent=("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
-            locale="he-IL")
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            ),
+            locale="he-IL",
+        )
         page = ctx.new_page()
         page.goto(SV4, wait_until="domcontentloaded", timeout=60000)
         try:
@@ -73,7 +79,8 @@ def main():
             if with_edn:
                 url += f"&edn=temp-default&pn={PLAN}"
             try:
-                res = page.evaluate("""async (url) => {
+                res = page.evaluate(
+                    """async (url) => {
                   const r = await fetch(url, {credentials: 'include'});
                   const b = await r.arrayBuffer();
                   const u8 = new Uint8Array(b.slice(0, 16));
@@ -81,20 +88,34 @@ def main():
                           ctype: r.headers.get('content-type') || '',
                           bytes: b.byteLength,
                           head: Array.from(u8)};
-                }""", url)
+                }""",
+                    url,
+                )
             except Exception as exc:
                 res = {"error": type(exc).__name__}
             head = bytes(res.get("head", []))
-            kind = ("PDF" if head[:4] == b"%PDF" else
-                    "ZIP" if head[:2] == b"PK" else "other")
-            row = {"eid": eid, "fn": fn[:40], "edn": with_edn,
-                   "status": res.get("status"), "ctype": (res.get("ctype") or "")[:40],
-                   "bytes": res.get("bytes"), "kind": kind}
+            kind = (
+                "PDF"
+                if head[:4] == b"%PDF"
+                else "ZIP"
+                if head[:2] == b"PK"
+                else "other"
+            )
+            row = {
+                "eid": eid,
+                "fn": fn[:40],
+                "edn": with_edn,
+                "status": res.get("status"),
+                "ctype": (res.get("ctype") or "")[:40],
+                "bytes": res.get("bytes"),
+                "kind": kind,
+            }
             results.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
             if kind == "PDF" and res.get("status") == 200:
                 # fetch the full body and save it
-                full = page.evaluate("""async (url) => {
+                full = page.evaluate(
+                    """async (url) => {
                   const r = await fetch(url, {credentials: 'include'});
                   const b = await r.arrayBuffer();
                   const u8 = new Uint8Array(b);
@@ -103,10 +124,14 @@ def main():
                     s += String.fromCharCode.apply(null, u8.subarray(i, i + 65536));
                   }
                   return btoa(s);
-                }""", url)
+                }""",
+                    url,
+                )
                 import base64
-                (OUT / f"binguy_{eid}_{'edn' if with_edn else 'plain'}.pdf").write_bytes(
-                    base64.b64decode(full))
+
+                (
+                    OUT / f"binguy_{eid}_{'edn' if with_edn else 'plain'}.pdf"
+                ).write_bytes(base64.b64decode(full))
                 print(f"SAVED binguy_{eid}.pdf", flush=True)
             time.sleep(1.5)
         browser.close()

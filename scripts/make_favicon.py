@@ -6,6 +6,7 @@ own palette (administration-style, no official logo usage).
 Renders docs/favicon.svg to docs/favicon-32.png and docs/apple-touch-icon.png
 via headless Chromium (playwright). Run: python scripts/make_favicon.py
 """
+
 import pathlib
 
 from playwright.sync_api import sync_playwright
@@ -26,6 +27,8 @@ if __name__ == "__main__":
     render(32, DOCS / "favicon-32.png")
     render(180, DOCS / "apple-touch-icon.png")
     from PIL import Image
+
     Image.open(DOCS / "apple-touch-icon.png").convert("RGBA").save(
-        DOCS / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+        DOCS / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)]
+    )
     print("wrote PNG, Apple and multi-size ICO icons")

@@ -4,6 +4,7 @@ the owner-operated L2TP/IPsec tunnel (the apps are JS SPAs, so a plain
 GET returns only the shell). Public pages only: render, read visible
 text/fields/links, screenshot. Never submits forms, never logs in; any
 hard challenge (captcha / login wall) stops the run red."""
+
 import json, os, sys, time
 from pathlib import Path
 
@@ -12,8 +13,13 @@ from playwright.sync_api import sync_playwright
 OUT = Path("/tmp/muni_browser_probe")
 OUT.mkdir(parents=True, exist_ok=True)
 
-CHALLENGE_MARKERS = ["recaptcha", "px-captcha", "are you a robot",
-                     "אימות אנושי", "human verification"]
+CHALLENGE_MARKERS = [
+    "recaptcha",
+    "px-captcha",
+    "are you a robot",
+    "אימות אנושי",
+    "human verification",
+]
 
 
 def main():
@@ -25,9 +31,13 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--no-sandbox"])
         ctx = browser.new_context(
-            user_agent=("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
-            locale="he-IL", viewport={"width": 1400, "height": 900})
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            ),
+            locale="he-IL",
+            viewport={"width": 1400, "height": 900},
+        )
         page = ctx.new_page()
         for i, url in enumerate(urls):
             entry = {"url": url}

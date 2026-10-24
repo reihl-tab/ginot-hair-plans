@@ -10,6 +10,7 @@ objection-open, show-approved) always operate over all rows.
 Dates display as DD.MM.YYYY; ISO values stay in data-* attributes so all
 sorting/filtering uses true dates. Statistics render in a collapsed block below the table; the footer (About) is last.
 """
+
 import datetime
 import html
 import json
@@ -273,10 +274,24 @@ def sort_rows(rows: list[dict], today: str | None = None) -> list[dict]:
     today = today or today_il().isoformat()
     for r in rows:
         r["_open_obj"] = _is_open_objection(r, today)
-    with_dl = sorted((r for r in rows if _iso(r.get("objection_deadline_derived_60d_from_publication"))),
-                     key=lambda r: _iso(r["objection_deadline_derived_60d_from_publication"]), reverse=True)
-    without_dl = sorted((r for r in rows if not _iso(r.get("objection_deadline_derived_60d_from_publication"))),
-                        key=lambda r: _iso(r.get("receiving_date")), reverse=True)
+    with_dl = sorted(
+        (
+            r
+            for r in rows
+            if _iso(r.get("objection_deadline_derived_60d_from_publication"))
+        ),
+        key=lambda r: _iso(r["objection_deadline_derived_60d_from_publication"]),
+        reverse=True,
+    )
+    without_dl = sorted(
+        (
+            r
+            for r in rows
+            if not _iso(r.get("objection_deadline_derived_60d_from_publication"))
+        ),
+        key=lambda r: _iso(r.get("receiving_date")),
+        reverse=True,
+    )
     ordered = with_dl + without_dl
     for i, r in enumerate(ordered):
         r["_rank"] = i + 1
@@ -292,9 +307,11 @@ def _bars(counts: dict, label_map: dict | None = None) -> str:
     for k, v in sorted(counts.items(), key=lambda kv: -kv[1]):
         label = (label_map or {}).get(k, k) or "(ללא)"
         pct = max(2, round(100 * v / top))
-        out.append(f"<div class='bar'><span class='bl'>{_e(label)}</span>"
-                   f"<span class='bt'><span class='bf' style='width:{pct}%'></span></span>"
-                   f"<span class='bv'>{v}</span></div>")
+        out.append(
+            f"<div class='bar'><span class='bl'>{_e(label)}</span>"
+            f"<span class='bt'><span class='bf' style='width:{pct}%'></span></span>"
+            f"<span class='bv'>{v}</span></div>"
+        )
     return "<div class='bars'>" + "".join(out) + "</div>"
 
 
@@ -304,11 +321,22 @@ def _month_key(iso: str) -> str:
 
 def stats_section(rows: list[dict]) -> str:
     from collections import Counter
+
     by_status = Counter(r.get("station_desc") or "(ללא)" for r in rows)
     by_flag = Counter(r.get("inside_flag") or "(ללא)" for r in rows)
-    deposits = Counter(filter(None, (_month_key(r.get("pl_last_deposit_date") or r.get("depositing_date")) for r in rows)))
+    deposits = Counter(
+        filter(
+            None,
+            (
+                _month_key(r.get("pl_last_deposit_date") or r.get("depositing_date"))
+                for r in rows
+            ),
+        )
+    )
     deposits = dict(sorted(deposits.items())[-24:])
-    approvals = Counter(filter(None, ((r.get("pl_date_8_approval") or "")[:4] for r in rows)))
+    approvals = Counter(
+        filter(None, ((r.get("pl_date_8_approval") or "")[:4] for r in rows))
+    )
     approvals = dict(sorted(approvals.items()))
     flag_he = {"inside": "בתוך השטח", "partial": "חפיפה חלקית"}
     return f"""<details id="stats"><summary>סטטיסטיקה</summary>
@@ -318,8 +346,6 @@ def stats_section(rows: list[dict]) -> str:
 <div><h3>הפקדות לפי חודש (24 אחרונים)</h3>{_bars(deposits)}</div>
 <div><h3>אישורים לפי שנה</h3>{_bars(approvals)}</div>
 </div></details>"""
-
-
 
 
 def _permit_status_class(status: str) -> str:
@@ -338,11 +364,13 @@ def _permit_status_class(status: str) -> str:
     return "c-inproc"
 
 
-_PERMIT_TERMINAL_STATUSES = frozenset({
-    "הבקשה נסגרה",
-    "הופק-הוצא היתר בניה",
-    "הופק היתר מוארך",
-})
+_PERMIT_TERMINAL_STATUSES = frozenset(
+    {
+        "הבקשה נסגרה",
+        "הופק-הוצא היתר בניה",
+        "הופק היתר מוארך",
+    }
+)
 
 
 def _permit_tik_link(tik_num: str | None) -> str:
@@ -351,9 +379,11 @@ def _permit_tik_link(tik_num: str | None) -> str:
     tik = (tik_num or "").strip()
     if not tik:
         return ""
-    url = ("https://ykpubdata.jerusalem.muni.il/#/Details?TikNum="
-           + _urlparse_mod.quote(tik, safe="")
-           + "&SystemCode=26400046&Page=BakashalInfo")
+    url = (
+        "https://ykpubdata.jerusalem.muni.il/#/Details?TikNum="
+        + _urlparse_mod.quote(tik, safe="")
+        + "&SystemCode=26400046&Page=BakashalInfo"
+    )
     return f"<a href='{url}' target='_blank' rel='noopener'>{_e(tik)}</a>"
 
 
@@ -372,12 +402,18 @@ def _permits_section(permits: list[dict], rows_file: str | None = None) -> str:
         sug = p.get("sugbakasha") or ""
         active = "0" if status in _PERMIT_TERMINAL_STATUSES else "1"
         pub_iso = _iso(p.get("publication_start"))
-        search = _e(" ".join([
-            p.get("tik_num") or "", p.get("address") or "",
-            p.get("mahut") or "", sug,
-            f"גוש {p.get('gush')}" if p.get("gush") else "",
-            f"חלקה {p.get('helka')}" if p.get("helka") else "",
-        ]).lower())
+        search = _e(
+            " ".join(
+                [
+                    p.get("tik_num") or "",
+                    p.get("address") or "",
+                    p.get("mahut") or "",
+                    sug,
+                    f"גוש {p.get('gush')}" if p.get("gush") else "",
+                    f"חלקה {p.get('helka')}" if p.get("helka") else "",
+                ]
+            ).lower()
+        )
         rows.append(
             f"<tr class='{('filtered-out' if active == '0' else '')}' data-active='{active}' data-status='{_e(status)}' data-sug='{_e(sug)}'"
             f" data-pub='{pub_iso}' data-search='{search}'>"
@@ -385,27 +421,34 @@ def _permits_section(permits: list[dict], rows_file: str | None = None) -> str:
             f"<td>{_e(p.get('address') or '')}</td>"
             f"<td>{_e(p.get('mahut') or '')}</td>"
             f"<td>{_e(sug)}</td>"
-            f"<td><span class=\"chip {_permit_status_class(status)}\">{_e(status)}</span></td>"
+            f'<td><span class="chip {_permit_status_class(status)}">{_e(status)}</span></td>'
             f"<td>{_date_cell(p.get('status_date'))}</td>"
             f"<td>{_date_cell(p.get('publication_start'))}</td>"
-            f"<td>{_date_cell(p.get('publication_end_planned'))}</td></tr>")
+            f"<td>{_date_cell(p.get('publication_end_planned'))}</td></tr>"
+        )
     if rows_file:  # full set loads client-side (#169); the page keeps only the top rows
         with open(rows_file, "w", encoding="utf-8") as fh:
             fh.write("".join(rows))
     body = "".join(rows[:COLLAPSE_TOP])
-    n_terminal = sum(1 for p in permits if (p.get("status") or "") in _PERMIT_TERMINAL_STATUSES)
+    n_terminal = sum(
+        1 for p in permits if (p.get("status") or "") in _PERMIT_TERMINAL_STATUSES
+    )
     statuses = sorted({(p.get("status") or "") for p in permits if p.get("status")})
     from collections import Counter as _PCounter
+
     _pcounts = _PCounter((p.get("status") or "") for p in permits)
     plegend_chips = " ".join(
         f'<span class="chip {_permit_status_class(v)}" data-status="{_e(v)}">{_e(v)} ({_pcounts[v]})</span>'
-        for v in statuses)
+        for v in statuses
+    )
     plegend = '<div class="legend"><b>מקרא סטטוסים:</b> ' + plegend_chips + "</div>"
     sugs = sorted({(p.get("sugbakasha") or "") for p in permits if p.get("sugbakasha")})
     status_opts = "<option value=''>כל הסטטוסים</option>" + "".join(
-        f"<option value='{_e(v)}'>{_e(v)}</option>" for v in statuses)
+        f"<option value='{_e(v)}'>{_e(v)}</option>" for v in statuses
+    )
     sug_opts = "<option value=''>כל הסוגים</option>" + "".join(
-        f"<option value='{_e(v)}'>{_e(v)}</option>" for v in sugs)
+        f"<option value='{_e(v)}'>{_e(v)}</option>" for v in sugs
+    )
     return f"""
 <section id="permits" dir="rtl">
 <h2>בקשות היתר (טיוטה - DRAFT)</h2>
@@ -433,6 +476,7 @@ def _permits_section(permits: list[dict], rows_file: str | None = None) -> str:
 <noscript><p>מוצגות {COLLAPSE_TOP} הבקשות הראשונות בלבד - להצגת כולן ולהשתמש בסינון יש להפעיל JavaScript.</p></noscript>
 <button id="pmore" type="button"></button>
 </section>"""
+
 
 _PERMITS_JS = """
 (function(){
@@ -495,33 +539,51 @@ apply();
 })();
 """
 
+
 def _social_meta(council_name: str, base_url: str, preview_image: bool) -> str:
     """Open Graph + Twitter card tags. The image URL must be absolute, so the
     image tags appear only with a base_url and a generated og.png."""
     title = f"תכניות תכנון ובנייה - {council_name}"
     desc = "תכניות והיתרים באזור: סטטוס, מועדי הפקדה ותאריך אחרון להתנגדות (משוער)."
-    tags = [("name", "description", desc), ("property", "og:type", "website"),
-            ("property", "og:locale", "he_IL"), ("property", "og:title", title),
-            ("property", "og:description", desc)]
+    tags = [
+        ("name", "description", desc),
+        ("property", "og:type", "website"),
+        ("property", "og:locale", "he_IL"),
+        ("property", "og:title", title),
+        ("property", "og:description", desc),
+    ]
     if base_url:
         tags.append(("property", "og:url", base_url))
     if base_url and preview_image:
-        tags += [("property", "og:image", base_url.rstrip("/") + "/og.png"),
-                 ("property", "og:image:width", "1200"), ("property", "og:image:height", "630"),
-                 ("property", "og:image:alt", title), ("name", "twitter:card", "summary_large_image"),
-                 ("name", "twitter:image", base_url.rstrip("/") + "/og.png")]
+        tags += [
+            ("property", "og:image", base_url.rstrip("/") + "/og.png"),
+            ("property", "og:image:width", "1200"),
+            ("property", "og:image:height", "630"),
+            ("property", "og:image:alt", title),
+            ("name", "twitter:card", "summary_large_image"),
+            ("name", "twitter:image", base_url.rstrip("/") + "/og.png"),
+        ]
     else:
         tags.append(("name", "twitter:card", "summary"))
     tags += [("name", "twitter:title", title), ("name", "twitter:description", desc)]
     return "\n".join(f'<meta {k}="{n}" content="{_e(v)}">' for k, n, v in tags)
 
 
-def render_index(rows: list[dict], changes: list[dict], generated: str, council_name: str,
-                 permits: list[dict] | None = None, base_url: str = "",
-                 preview_image: bool = False, reviews: dict[str, str] | None = None,
-                 rows_file: str | None = None, permits_file: str | None = None) -> str:
+def render_index(
+    rows: list[dict],
+    changes: list[dict],
+    generated: str,
+    council_name: str,
+    permits: list[dict] | None = None,
+    base_url: str = "",
+    preview_image: bool = False,
+    reviews: dict[str, str] | None = None,
+    rows_file: str | None = None,
+    permits_file: str | None = None,
+) -> str:
     reviews = reviews or {}
     from . import mapview
+
     rows = sort_rows(rows)
     statuses = sorted({(r.get("station_desc") or "") for r in rows} - {""})
 
@@ -543,28 +605,33 @@ def render_index(rows: list[dict], changes: list[dict], generated: str, council_
             cls = ""
         return f'<span class="chip {cls}" data-status="{_e(st)}">{_e(st)}</span>'
 
-
     def review_cell(r):
         url = reviews.get(r["pl_number"])
         if not url:
             return "—"
-        return (f"<a class='ai-review' href='{_e(url)}' "
-                f"title='סיכום נקודות לדיון שהופק באמצעות AI - אינו מסמך רשמי'>סקירה</a>")
+        return (
+            f"<a class='ai-review' href='{_e(url)}' "
+            f"title='סיכום נקודות לדיון שהופק באמצעות AI - אינו מסמך רשמי'>סקירה</a>"
+        )
 
     def tr(r):
         search = _e((r["pl_number"] + " " + (r.get("pl_name") or "")).lower())
-        attrs = (f"data-status='{_e(r.get('station_desc'))}' data-flag='{_e(r.get('inside_flag'))}' "
-                 f"data-recv='{_e(_iso(r.get('receiving_date')))}' data-dep='{_e(_iso(_deposit_date(r)))}' "
-                 f"data-open='{1 if r['_open_obj'] else 0}' data-obj='{_e(_iso(r['objection_deadline_derived_60d_from_publication']))}' data-num='{_e(r['pl_number'])}' data-name='{_e((r.get('pl_name') or '').lower())}' data-area='{_e(r['pl_area_dunam'])}' "
-                 f"data-active='{1 if r['_open_obj'] or _is_active(r) else 0}' data-search='{search}'")
+        attrs = (
+            f"data-status='{_e(r.get('station_desc'))}' data-flag='{_e(r.get('inside_flag'))}' "
+            f"data-recv='{_e(_iso(r.get('receiving_date')))}' data-dep='{_e(_iso(_deposit_date(r)))}' "
+            f"data-open='{1 if r['_open_obj'] else 0}' data-obj='{_e(_iso(r['objection_deadline_derived_60d_from_publication']))}' data-num='{_e(r['pl_number'])}' data-name='{_e((r.get('pl_name') or '').lower())}' data-area='{_e(r['pl_area_dunam'])}' "
+            f"data-active='{1 if r['_open_obj'] or _is_active(r) else 0}' data-search='{search}'"
+        )
         cls = "new" if r.get("_is_new") else ""
-        return (f"<tr class='{cls}' {attrs}>"
-                f"<td><a href='{_e(r['mavat_url'])}'>{_e(r['pl_number'])}</a></td>"
-                f"<td>{_e(r['pl_name'])}</td><td>{chip(r['station_desc'])}</td>"
-                f"<td>{_date_cell(r['receiving_date'])}</td>"
-                f"<td>{_date_cell(_deposit_date(r))}</td>"
-                f"<td class='derived'>{_date_cell(r['objection_deadline_derived_60d_from_publication'])}</td>"
-                f"<td>{_e(r['pl_area_dunam'])}</td><td>{review_cell(r)}</td></tr>")
+        return (
+            f"<tr class='{cls}' {attrs}>"
+            f"<td><a href='{_e(r['mavat_url'])}'>{_e(r['pl_number'])}</a></td>"
+            f"<td>{_e(r['pl_name'])}</td><td>{chip(r['station_desc'])}</td>"
+            f"<td>{_date_cell(r['receiving_date'])}</td>"
+            f"<td>{_date_cell(_deposit_date(r))}</td>"
+            f"<td class='derived'>{_date_cell(r['objection_deadline_derived_60d_from_publication'])}</td>"
+            f"<td>{_e(r['pl_area_dunam'])}</td><td>{review_cell(r)}</td></tr>"
+        )
 
     new_ids = {c["pl_number"] for c in changes if c["kind"] == "new"}
     for r in rows:
@@ -590,19 +657,38 @@ def render_index(rows: list[dict], changes: list[dict], generated: str, council_
             return False
         return 0 <= dd <= URGENT_DAYS
 
-    urgent = sorted((r for r in rows if _urgent_window(r)),
-                    key=lambda r: _iso(r["objection_deadline_derived_60d_from_publication"]))
-    urgent_html = "".join(
-        f"<li><a href='{_e(r['mavat_url'])}'>{_e(r['pl_number'])}</a> {_e(r['pl_name'])} - "
-        f"אחרון להתנגדות (משוער): {_e(_fmt(r['objection_deadline_derived_60d_from_publication']))}</li>"
-        for r in urgent) or "<li>אין</li>"
-    changes_html = "".join(
-        f"<li>{_e(c['kind'])}: <a href='{_e(c['mavat_url'])}'>{_e(c['pl_number'])}</a> {_e(c['pl_name'])}"
-        + (f" ({_e(c.get('from'))} → {_e(c.get('to'))})" if c["kind"] == "status_change" else "")
-        + "</li>" for c in changes) or "<li>אין שינויים מהסריקה הקודמת</li>"
+    urgent = sorted(
+        (r for r in rows if _urgent_window(r)),
+        key=lambda r: _iso(r["objection_deadline_derived_60d_from_publication"]),
+    )
+    urgent_html = (
+        "".join(
+            f"<li><a href='{_e(r['mavat_url'])}'>{_e(r['pl_number'])}</a> {_e(r['pl_name'])} - "
+            f"אחרון להתנגדות (משוער): {_e(_fmt(r['objection_deadline_derived_60d_from_publication']))}</li>"
+            for r in urgent
+        )
+        or "<li>אין</li>"
+    )
+    changes_html = (
+        "".join(
+            f"<li>{_e(c['kind'])}: <a href='{_e(c['mavat_url'])}'>{_e(c['pl_number'])}</a> {_e(c['pl_name'])}"
+            + (
+                f" ({_e(c.get('from'))} → {_e(c.get('to'))})"
+                if c["kind"] == "status_change"
+                else ""
+            )
+            + "</li>"
+            for c in changes
+        )
+        or "<li>אין שינויים מהסריקה הקודמת</li>"
+    )
     status_opts = "".join(f"<option value='{_e(s)}'>{_e(s)}</option>" for s in statuses)
     n_approved = sum(1 for r in rows if not r["_open_obj"] and not _is_active(r))
-    legend = '<div class="legend plan-legend"><b>מקרא סטטוסים:</b> ' + " ".join(chip(s) for s in statuses) + "</div>"
+    legend = (
+        '<div class="legend plan-legend"><b>מקרא סטטוסים:</b> '
+        + " ".join(chip(s) for s in statuses)
+        + "</div>"
+    )
     return f"""<!DOCTYPE html>
 <html dir="rtl" lang="he"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -662,26 +748,41 @@ def render_index(rows: list[dict], changes: list[dict], generated: str, council_
 
 
 _SOURCES_ROWS = [
-    ("תכניות במינהל", "שירות התכנון הציבורי (iplan), מנהל התכנון",
-     "מספר ושם התכנית, סטטוס, תאריכי קליטה והפקדה, שטח; מועד אחרון להתנגדות מחושב (הערכה)",
-     "רענון שבועי (יום שלישי) ורענונים ידניים",
-     '<a href="data.json">data.json</a>'),
-    ("פרסומי הפקדה", "land.gov.il - מינהל מקרקעי ישראל",
-     "תאריכי פרסום ההפקדה בעיתונים וביתרונות לכל תכנית",
-     "רענון שבועי",
-     '<a href="https://land.gov.il">land.gov.il</a>'),
-    ("בקשות היתר", "איתור נתונים ברישוי, עיריית ירושלים",
-     "מספר בקשה, כתובת, מהות, סוג, סטטוס, תאריכי סטטוס ופרסום, גוש וחלקה",
-     "סריקת חלקות באצוות ליליות (בשלבי השלמה ראשונית) והעשרת סטטוסים",
-     '<a href="https://ykpubdata.jerusalem.muni.il/">איתור נתונים ברישוי</a>'),
-    ("מסמכי תכנית וסקירות AI", 'מאב"ת - מערכת איתור בינוי ותכניות',
-     "מסמכי הוראות, תשריט והודעות; סיכומי נקודות לדיון שהופקו באמצעות AI (מסומנים, אינם מסמך רשמי)",
-     "לפי צורך, לתכניות נבחרות",
-     '<a href="https://mavat.iplan.gov.il/">מאב"ת</a>'),
-    ("גבול המינהל", "קובץ גבול גיאוגרפי במאגר",
-     "פוליגון שטח המינהל הקהילתי (geojson)",
-     "עדכון ידני בשינוי גבול",
-     '<a href="https://github.com/reihlinstinct/ginot-hair-plans/tree/main/data">תיקיית data</a>'),
+    (
+        "תכניות במינהל",
+        "שירות התכנון הציבורי (iplan), מנהל התכנון",
+        "מספר ושם התכנית, סטטוס, תאריכי קליטה והפקדה, שטח; מועד אחרון להתנגדות מחושב (הערכה)",
+        "רענון שבועי (יום שלישי) ורענונים ידניים",
+        '<a href="data.json">data.json</a>',
+    ),
+    (
+        "פרסומי הפקדה",
+        "land.gov.il - מינהל מקרקעי ישראל",
+        "תאריכי פרסום ההפקדה בעיתונים וביתרונות לכל תכנית",
+        "רענון שבועי",
+        '<a href="https://land.gov.il">land.gov.il</a>',
+    ),
+    (
+        "בקשות היתר",
+        "איתור נתונים ברישוי, עיריית ירושלים",
+        "מספר בקשה, כתובת, מהות, סוג, סטטוס, תאריכי סטטוס ופרסום, גוש וחלקה",
+        "סריקת חלקות באצוות ליליות (בשלבי השלמה ראשונית) והעשרת סטטוסים",
+        '<a href="https://ykpubdata.jerusalem.muni.il/">איתור נתונים ברישוי</a>',
+    ),
+    (
+        "מסמכי תכנית וסקירות AI",
+        'מאב"ת - מערכת איתור בינוי ותכניות',
+        "מסמכי הוראות, תשריט והודעות; סיכומי נקודות לדיון שהופקו באמצעות AI (מסומנים, אינם מסמך רשמי)",
+        "לפי צורך, לתכניות נבחרות",
+        '<a href="https://mavat.iplan.gov.il/">מאב"ת</a>',
+    ),
+    (
+        "גבול המינהל",
+        "קובץ גבול גיאוגרפי במאגר",
+        "פוליגון שטח המינהל הקהילתי (geojson)",
+        "עדכון ידני בשינוי גבול",
+        '<a href="https://github.com/reihlinstinct/ginot-hair-plans/tree/main/data">תיקיית data</a>',
+    ),
 ]
 
 _SOURCES_REDIRECT = """<!DOCTYPE html>
@@ -716,7 +817,8 @@ def render_about(generated: str, council_name: str) -> str:
     rows = "".join(
         f"<tr><td>{_e(name)}</td><td>{_e(src)}</td><td>{_e(what)}</td>"
         f"<td>{_e(cad)}</td><td>{link}</td></tr>"
-        for name, src, what, cad, link in _SOURCES_ROWS)
+        for name, src, what, cad, link in _SOURCES_ROWS
+    )
     return f"""<!DOCTYPE html>
 <html dir="rtl" lang="he"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -773,32 +875,58 @@ def render_about(generated: str, council_name: str) -> str:
 
 def review_social_meta(pl_number, plan_name, base_url, has_image):
     title = f"סקירת AI - {pl_number}" + (f" | {plan_name}" if plan_name else "")
-    desc = "נקודות לדיון מתוך מסמכי התכנית. סיכום אוטומטי, לא מסמך רשמי ולא ייעוץ מקצועי."
-    tags = [("property", "og:type", "article"), ("property", "og:locale", "he_IL"),
-            ("property", "og:title", title), ("property", "og:description", desc),
-            ("name", "description", desc), ("name", "twitter:title", title),
-            ("name", "twitter:description", desc)]
+    desc = (
+        "נקודות לדיון מתוך מסמכי התכנית. סיכום אוטומטי, לא מסמך רשמי ולא ייעוץ מקצועי."
+    )
+    tags = [
+        ("property", "og:type", "article"),
+        ("property", "og:locale", "he_IL"),
+        ("property", "og:title", title),
+        ("property", "og:description", desc),
+        ("name", "description", desc),
+        ("name", "twitter:title", title),
+        ("name", "twitter:description", desc),
+    ]
     if base_url:
         base = base_url.rstrip("/") + "/"
-        tags.append(("property", "og:url", base + f"reviews/talking_points_{pl_number}.html"))
+        tags.append(
+            ("property", "og:url", base + f"reviews/talking_points_{pl_number}.html")
+        )
         image = base + (f"reviews/og_{pl_number}.png" if has_image else "og.png")
-        tags += [("property", "og:image", image), ("property", "og:image:width", "1200"),
-                 ("property", "og:image:height", "630"), ("property", "og:image:type", "image/png"),
-                 ("property", "og:image:alt", title), ("name", "twitter:image", image),
-                 ("name", "twitter:card", "summary_large_image")]
+        tags += [
+            ("property", "og:image", image),
+            ("property", "og:image:width", "1200"),
+            ("property", "og:image:height", "630"),
+            ("property", "og:image:type", "image/png"),
+            ("property", "og:image:alt", title),
+            ("name", "twitter:image", image),
+            ("name", "twitter:card", "summary_large_image"),
+        ]
     else:
         tags.append(("name", "twitter:card", "summary"))
-    return "\n".join(f'<meta {key}="{name}" content="{_e(value)}">' for key, name, value in tags)
+    return "\n".join(
+        f'<meta {key}="{name}" content="{_e(value)}">' for key, name, value in tags
+    )
 
 
-def render_review(pl_number: str, md_text: str, generated: str, council_name: str,
-                  base_url: str = "", plan_name: str = "", preview_image: bool = False,
-                  external_html: str = "") -> str:
+def render_review(
+    pl_number: str,
+    md_text: str,
+    generated: str,
+    council_name: str,
+    base_url: str = "",
+    plan_name: str = "",
+    preview_image: bool = False,
+    external_html: str = "",
+) -> str:
     """Render a plan's AI talking-points markdown as a styled site page
     (issue #177). The .md stays the source of truth in the repo; the site
     render converts it - no separate Action. Clearly labelled AI content."""
     import markdown
-    body = markdown.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])
+
+    body = markdown.markdown(
+        md_text, extensions=["tables", "fenced_code", "sane_lists"]
+    )
     social = review_social_meta(pl_number, plan_name, base_url, preview_image)
     return f"""<!DOCTYPE html>
 <html dir="rtl" lang="he"><head><meta charset="utf-8">
@@ -824,32 +952,47 @@ def render_review(pl_number: str, md_text: str, generated: str, council_name: st
 </body></html>"""
 
 
-def render_feed(changes: list[dict], generated: str, council_name: str, base_url: str = "") -> str:
-    entries = "".join(f"""<entry><title>{_e(c['kind'])}: {_e(c['pl_number'])} {_e(c['pl_name'])}</title>
-<link href="{_e(c['mavat_url'])}"/><id>urn:ginot:{_e(c['pl_number'])}:{_e(c['kind'])}:{_e(generated)}</id>
-<updated>{_e(generated)}T00:00:00Z</updated></entry>""" for c in changes)
+def render_feed(
+    changes: list[dict], generated: str, council_name: str, base_url: str = ""
+) -> str:
+    entries = "".join(
+        f"""<entry><title>{_e(c["kind"])}: {_e(c["pl_number"])} {_e(c["pl_name"])}</title>
+<link href="{_e(c["mavat_url"])}"/><id>urn:ginot:{_e(c["pl_number"])}:{_e(c["kind"])}:{_e(generated)}</id>
+<updated>{_e(generated)}T00:00:00Z</updated></entry>"""
+        for c in changes
+    )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="he">
-<title>תכניות חדשות - {_e(council_name)}</title><id>{_e(base_url or 'urn:ginot:feed')}</id>
+<title>תכניות חדשות - {_e(council_name)}</title><id>{_e(base_url or "urn:ginot:feed")}</id>
 <updated>{_e(generated)}T00:00:00Z</updated>{entries}</feed>"""
 
 
-def render_site(rows: list[dict], changes: list[dict], out_dir: str,
-                council_name: str = "גינות העיר", base_url: str = "",
-                permits_path: str | None = None, council_geojson: str | None = None,
-                plans_dir: str = "plans",
-                external_reviews_path: str = "data/external_reviews.json"):
+def render_site(
+    rows: list[dict],
+    changes: list[dict],
+    out_dir: str,
+    council_name: str = "גינות העיר",
+    base_url: str = "",
+    permits_path: str | None = None,
+    council_geojson: str | None = None,
+    plans_dir: str = "plans",
+    external_reviews_path: str = "data/external_reviews.json",
+):
     import glob
     import os
     import re as _re
     import shutil
+
     os.makedirs(out_dir, exist_ok=True)
     from pathlib import Path
+
     static = Path(__file__).parent / "static"
     shutil.copytree(static, out_dir, dirs_exist_ok=True)
     reviews = {}
     review_pages = {}
-    for path in sorted(glob.glob(os.path.join(plans_dir, "*", "analysis", "talking_points_*.md"))):
+    for path in sorted(
+        glob.glob(os.path.join(plans_dir, "*", "analysis", "talking_points_*.md"))
+    ):
         m = _re.fullmatch(r"talking_points_(\d+-\d+)\.md", os.path.basename(path))
         if m:
             reviews[m.group(1)] = f"reviews/talking_points_{m.group(1)}.html"
@@ -864,18 +1007,36 @@ def render_site(rows: list[dict], changes: list[dict], out_dir: str,
         except (FileNotFoundError, json.JSONDecodeError):
             permits = []
     from . import preview
+
     sort_rows(rows)  # annotates _open_obj, which the preview card counts
-    has_img = preview.render_preview(rows, council_name, generated, "data/council_ginot_hair.geojson"
-                                     if os.path.exists("data/council_ginot_hair.geojson")
-                                     else "data/council.geojson", f"{out_dir}/og.png")
+    has_img = preview.render_preview(
+        rows,
+        council_name,
+        generated,
+        "data/council_ginot_hair.geojson"
+        if os.path.exists("data/council_ginot_hair.geojson")
+        else "data/council.geojson",
+        f"{out_dir}/og.png",
+    )
     with open(f"{out_dir}/style.css", "w", encoding="utf-8") as fh:
         fh.write(_CSS)
     with open(f"{out_dir}/index.html", "w", encoding="utf-8") as fh:
-        fh.write(render_index(rows, changes, generated, council_name, permits,
-                              base_url=base_url, preview_image=has_img, reviews=reviews,
-                              rows_file=f"{out_dir}/rows.html",
-                              permits_file=f"{out_dir}/permits.html"))
+        fh.write(
+            render_index(
+                rows,
+                changes,
+                generated,
+                council_name,
+                permits,
+                base_url=base_url,
+                preview_image=has_img,
+                reviews=reviews,
+                rows_file=f"{out_dir}/rows.html",
+                permits_file=f"{out_dir}/permits.html",
+            )
+        )
     from . import external_reviews as _er
+
     external = _er.load(external_reviews_path)
     if _er.validate_entries(external):
         external = []  # never render an invalid file
@@ -884,11 +1045,24 @@ def render_site(rows: list[dict], changes: list[dict], out_dir: str,
         row_by_number = {r.get("pl_number"): r for r in rows}
         for pl, md_text in review_pages.items():
             row = row_by_number.get(pl, {"pl_number": pl})
-            review_image = preview.render_review_preview(row, generated, f"{out_dir}/reviews/og_{pl}.png")
-            with open(f"{out_dir}/reviews/talking_points_{pl}.html", "w", encoding="utf-8") as fh:
-                fh.write(render_review(pl, md_text, generated, council_name, base_url,
-                                       row.get("pl_name") or "", review_image,
-                                       _er.render_section(external, pl)))
+            review_image = preview.render_review_preview(
+                row, generated, f"{out_dir}/reviews/og_{pl}.png"
+            )
+            with open(
+                f"{out_dir}/reviews/talking_points_{pl}.html", "w", encoding="utf-8"
+            ) as fh:
+                fh.write(
+                    render_review(
+                        pl,
+                        md_text,
+                        generated,
+                        council_name,
+                        base_url,
+                        row.get("pl_name") or "",
+                        review_image,
+                        _er.render_section(external, pl),
+                    )
+                )
     with open(f"{out_dir}/about.html", "w", encoding="utf-8") as fh:
         fh.write(render_about(generated, council_name))
     with open(f"{out_dir}/sources.html", "w", encoding="utf-8") as fh:
@@ -896,8 +1070,16 @@ def render_site(rows: list[dict], changes: list[dict], out_dir: str,
     with open(f"{out_dir}/feed.xml", "w", encoding="utf-8") as fh:
         fh.write(render_feed(changes, generated, council_name, base_url))
     with open(f"{out_dir}/data.json", "w", encoding="utf-8") as fh:
-        json.dump({"generated": generated, "rows": rows, "changes": changes,
-                   "permits": permits}, fh, ensure_ascii=False)
+        json.dump(
+            {
+                "generated": generated,
+                "rows": rows,
+                "changes": changes,
+                "permits": permits,
+            },
+            fh,
+            ensure_ascii=False,
+        )
     # Public "open plans" endpoint (owner request 2026-10-21): plans still in
     # the planning process (definition A: station_desc is not "אישור"), with a
     # public flag for an open objection window. sort_rows above already
@@ -909,7 +1091,13 @@ def render_site(rows: list[dict], changes: list[dict], out_dir: str,
             rr["in_objection_period"] = bool(r.get("_open_obj"))
             open_rows.append(rr)
     with open(f"{out_dir}/open.json", "w", encoding="utf-8") as fh:
-        json.dump({"generated": generated,
-                   "definition": "station_desc != 'אישור' - תכניות שעדיין בתהליך תכנוני",
-                   "count": len(open_rows), "plans": open_rows},
-                  fh, ensure_ascii=False)
+        json.dump(
+            {
+                "generated": generated,
+                "definition": "station_desc != 'אישור' - תכניות שעדיין בתהליך תכנוני",
+                "count": len(open_rows),
+                "plans": open_rows,
+            },
+            fh,
+            ensure_ascii=False,
+        )

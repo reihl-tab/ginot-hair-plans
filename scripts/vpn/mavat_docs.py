@@ -25,6 +25,7 @@ run artifact, never to the log.
 
 Exit codes: 0 = fetched >=1 document; 1 = nothing fetched; 2 = challenge.
 """
+
 import json
 import os
 import re
@@ -41,8 +42,15 @@ PACE_S = 4
 MAX_DOWNLOADS = 80
 MAX_BODY = 8 * 1024 * 1024
 
-CHALLENGE_MARKERS = ("incapsula", "recaptcha", "px-captcha", "perimeterx",
-                     "request blocked", "access denied", "are you a robot")
+CHALLENGE_MARKERS = (
+    "incapsula",
+    "recaptcha",
+    "px-captcha",
+    "perimeterx",
+    "request blocked",
+    "access denied",
+    "are you a robot",
+)
 DOC_EXT = (".pdf", ".zip", ".doc", ".docx", ".tif", ".tiff", ".jpg", ".jpeg", ".png")
 
 REST_CANDIDATES = [
@@ -51,9 +59,17 @@ REST_CANDIDATES = [
     f"{BASE}/rest/api/Plans/GetPlanByIdNumber?idNumber={PLAN}",
 ]
 
-report = {"plan": PLAN, "mp_id": MP_ID, "page": PAGE_URL,
-          "rest_json": [], "xhr": [], "clicks": [], "downloads": [],
-          "admin_comments_chars": 0, "failures": []}
+report = {
+    "plan": PLAN,
+    "mp_id": MP_ID,
+    "page": PAGE_URL,
+    "rest_json": [],
+    "xhr": [],
+    "clicks": [],
+    "downloads": [],
+    "admin_comments_chars": 0,
+    "failures": [],
+}
 xhr_bodies = []  # saved to artifact, never logged
 
 
@@ -106,8 +122,9 @@ def main():
         ctx = browser.new_context(
             accept_downloads=True,
             user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-            locale="he-IL")
+            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            locale="he-IL",
+        )
         page = ctx.new_page()
 
         def on_response(resp):
@@ -123,7 +140,9 @@ def main():
                 if "json" in ctype and resp.status == 200:
                     body = resp.body()
                     if len(body) <= MAX_BODY:
-                        xhr_bodies.append({"url": url[:300], "body": body.decode("utf-8", "replace")})
+                        xhr_bodies.append(
+                            {"url": url[:300], "body": body.decode("utf-8", "replace")}
+                        )
                         try:
                             url_strings(json.loads(body), doc_urls)
                         except Exception:
@@ -142,11 +161,20 @@ def main():
                 low = body[:200000].lower()
                 if any(m.encode() in low for m in CHALLENGE_MARKERS):
                     raise Challenge()
-                served = r.status == 200 and ("json" in ctype or body[:1] in (b"{", b"["))
-                report["rest_json"].append({"url": url.split("/rest/")[-1][:120],
-                                            "status": r.status, "served_json": bool(served)})
+                served = r.status == 200 and (
+                    "json" in ctype or body[:1] in (b"{", b"[")
+                )
+                report["rest_json"].append(
+                    {
+                        "url": url.split("/rest/")[-1][:120],
+                        "status": r.status,
+                        "served_json": bool(served),
+                    }
+                )
                 if served:
-                    xhr_bodies.append({"url": url, "body": body.decode("utf-8", "replace")})
+                    xhr_bodies.append(
+                        {"url": url, "body": body.decode("utf-8", "replace")}
+                    )
                     try:
                         url_strings(json.loads(body), doc_urls)
                     except Exception:
@@ -154,7 +182,9 @@ def main():
             except Challenge:
                 raise
             except Exception as exc:
-                report["failures"].append({"stage": "rest_probe", "error": type(exc).__name__})
+                report["failures"].append(
+                    {"stage": "rest_probe", "error": type(exc).__name__}
+                )
             time.sleep(PACE_S)
 
         # --- 1b. direct-fetch mode: a committed eid list short-circuits
@@ -166,10 +196,15 @@ def main():
                 with open(doc_list_path, encoding="utf-8") as fh:
                     direct_docs = json.load(fh)["docs"]
             except Exception as exc:
-                if os.environ.get("MAVAT_FETCH_MODE") == "clickdocs" and isinstance(exc, FileNotFoundError):
+                if os.environ.get("MAVAT_FETCH_MODE") == "clickdocs" and isinstance(
+                    exc, FileNotFoundError
+                ):
                     # UI discovery needs no precomputed eid list. Never use another
                     # plan's list as a substitute for a missing optional file.
-                    print("no optional doc list; discovering this plan through its UI", flush=True)
+                    print(
+                        "no optional doc list; discovering this plan through its UI",
+                        flush=True,
+                    )
                     doc_list_path = ""
                 else:
                     print(f"doc list unreadable ({type(exc).__name__})", flush=True)
@@ -190,21 +225,31 @@ def main():
         print("plan page loaded (content check positive)", flush=True)
         page.screenshot(path=str(OUT / "page_top.png"), full_page=False)
 
-        if direct_docs and os.environ.get("MAVAT_FETCH_MODE") not in ("zip", "clickdocs"):
+        if direct_docs and os.environ.get("MAVAT_FETCH_MODE") not in (
+            "zip",
+            "clickdocs",
+        ):
             print(f"direct-fetch mode: {len(direct_docs)} documents", flush=True)
             from urllib.parse import quote
+
             for i, d in enumerate(direct_docs):
                 eid, name = d["id"], d["name"]
-                fn_variants = [f"{PLAN}_{name}.pdf",
-                               f"{PLAN}_{name}_".encode().decode() ,
-                               f"DOC_{eid}.pdf", ""]
+                fn_variants = [
+                    f"{PLAN}_{name}.pdf",
+                    f"{PLAN}_{name}_".encode().decode(),
+                    f"DOC_{eid}.pdf",
+                    "",
+                ]
                 try:
                     r = None
                     for fn in fn_variants:
-                        url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
-                               f"&fn={quote(fn)}&edn=temp-default&pn={PLAN}")
-                        rr = ctx.request.get(url, timeout=120000,
-                                             headers={"Referer": PAGE_URL})
+                        url = (
+                            f"{BASE}/rest/api/Attacments/?eid={eid}"
+                            f"&fn={quote(fn)}&edn=temp-default&pn={PLAN}"
+                        )
+                        rr = ctx.request.get(
+                            url, timeout=120000, headers={"Referer": PAGE_URL}
+                        )
                         if rr.status == 200:
                             r = rr
                             break
@@ -218,29 +263,45 @@ def main():
                     if any(m.encode() in low for m in CHALLENGE_MARKERS):
                         raise Challenge()
                     if r.status != 200 or not body:
-                        report["downloads"].append({"doc": name, "status": r.status, "skipped": True})
+                        report["downloads"].append(
+                            {"doc": name, "status": r.status, "skipped": True}
+                        )
                         continue
-                    ext = (".pdf" if body[:4] == b"%PDF" else
-                           ".zip" if body[:2] == b"PK" else
-                           ".xls" if body[:8].startswith(b"\xd0\xcf\x11\xe0") else ".bin")
+                    ext = (
+                        ".pdf"
+                        if body[:4] == b"%PDF"
+                        else ".zip"
+                        if body[:2] == b"PK"
+                        else ".xls"
+                        if body[:8].startswith(b"\xd0\xcf\x11\xe0")
+                        else ".bin"
+                    )
                     fname = safe_name(f"{PLAN}_{name}") + ext
                     save_body("docs", fname, body)
                     downloaded_names.add(fname)
-                    report["downloads"].append({"doc": name, "file": fname, "bytes": len(body), "ctype": ctype})
+                    report["downloads"].append(
+                        {"doc": name, "file": fname, "bytes": len(body), "ctype": ctype}
+                    )
                     print(f"saved {fname} ({len(body)} bytes)", flush=True)
                 except Challenge:
                     raise
                 except Exception as exc:
-                    report["failures"].append({"stage": "direct_fetch", "doc": name, "error": type(exc).__name__})
+                    report["failures"].append(
+                        {
+                            "stage": "direct_fetch",
+                            "doc": name,
+                            "error": type(exc).__name__,
+                        }
+                    )
                 time.sleep(PACE_S)
             browser.close()
             got = len(downloaded_names)
             report["summary"] = {"files_downloaded": got, "mode": "direct"}
             (OUT / "fetch_report.json").write_text(
-                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
             print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
             return 0 if got else 1
-
 
         # --- 2c. zip mode: relay the page's own zipAttacments call ----
         # The page issues POST /rest/api/zipAttacments {auth,fname,ids,
@@ -251,6 +312,7 @@ def main():
         # docs only; no login; no challenge bypass.
         if os.environ.get("MAVAT_FETCH_MODE") == "zip" and direct_docs:
             import base64
+
             print(f"zip mode: {len(direct_docs)} documents", flush=True)
             tokens = []
 
@@ -270,13 +332,17 @@ def main():
                 # expand the documents accordion first (the ZIP affordance
                 # is only clickable once the category is open; run 4)
                 try:
-                    page.get_by_text(re.compile("^מסמכי התכנית$")).first.click(timeout=6000)
+                    page.get_by_text(re.compile("^מסמכי התכנית$")).first.click(
+                        timeout=6000
+                    )
                     time.sleep(2)
                 except Exception:
                     pass
                 clicked = False
                 try:
-                    page.get_by_text(re.compile("הורדת קבצים ב ZIP")).first.click(timeout=6000)
+                    page.get_by_text(re.compile("הורדת קבצים ב ZIP")).first.click(
+                        timeout=6000
+                    )
                     clicked = True
                 except Exception:
                     pass
@@ -289,9 +355,13 @@ def main():
                             try:
                                 if not el.is_visible():
                                     continue
-                                desc = ((el.get_attribute("title") or "") + " " +
-                                        (el.get_attribute("class") or "") + " " +
-                                        (el.inner_text() or "")[:40])
+                                desc = (
+                                    (el.get_attribute("title") or "")
+                                    + " "
+                                    + (el.get_attribute("class") or "")
+                                    + " "
+                                    + (el.inner_text() or "")[:40]
+                                )
                                 if "zip" not in desc.lower():
                                     continue
                                 el.click(timeout=4000)
@@ -327,24 +397,38 @@ def main():
                 # own ZIP link so the token is the site's own.
                 token = harvest_token()
                 if not token:
-                    report["failures"].append({"stage": "zip_mode", "error": "no_token"})
+                    report["failures"].append(
+                        {"stage": "zip_mode", "error": "no_token"}
+                    )
                     return None
                 try:
                     with page.expect_download(timeout=120000) as dl_info:
                         status = page.evaluate(
                             FETCH_JS,
-                            {"ids": [int(i) for i in ids], "fname": out_name,
-                             "entityNumber": PLAN, "token": token})
+                            {
+                                "ids": [int(i) for i in ids],
+                                "fname": out_name,
+                                "entityNumber": PLAN,
+                                "token": token,
+                            },
+                        )
                     dl = dl_info.value
                     path = OUT / "zipdocs" / safe_name(out_name)
                     path.parent.mkdir(parents=True, exist_ok=True)
                     dl.save_as(str(path))
-                    return {"file": path.name, "status": status,
-                            "bytes": path.stat().st_size}
+                    return {
+                        "file": path.name,
+                        "status": status,
+                        "bytes": path.stat().st_size,
+                    }
                 except Exception as exc:
-                    report["failures"].append({"stage": "zip_fetch",
-                                               "ids": ids[:3],
-                                               "error": type(exc).__name__})
+                    report["failures"].append(
+                        {
+                            "stage": "zip_fetch",
+                            "ids": ids[:3],
+                            "error": type(exc).__name__,
+                        }
+                    )
                     return None
 
             all_ids = [d["id"] for d in direct_docs]
@@ -352,37 +436,42 @@ def main():
             ok = False
             if batch and batch["bytes"] > 10000:
                 import zipfile
+
                 try:
                     with zipfile.ZipFile(OUT / "zipdocs" / batch["file"]) as zf:
                         names = zf.namelist()
                     if len(names) >= max(1, len(all_ids) - 2):
                         ok = True
                         downloaded_names.add(batch["file"])
-                        report["downloads"].append({**batch, "mode": "zip_batch",
-                                                    "entries": len(names)})
+                        report["downloads"].append(
+                            {**batch, "mode": "zip_batch", "entries": len(names)}
+                        )
                         print(f"zip batch: {len(names)} entries", flush=True)
                 except Exception:
                     pass
             if not ok and batch is None and not tokens:
-                report["failures"].append({"stage": "zip_mode",
-                                           "error": "batch_failed_no_token"})
+                report["failures"].append(
+                    {"stage": "zip_mode", "error": "batch_failed_no_token"}
+                )
             if not ok:
                 for d in direct_docs:
                     eid, name = d["id"], d["name"]
                     res = fetch_zip([eid], f"{PLAN}_{name}.zip")
                     if res and res["bytes"] > 1000:
                         downloaded_names.add(res["file"])
-                        report["downloads"].append({**res, "doc": name, "mode": "zip_single"})
+                        report["downloads"].append(
+                            {**res, "doc": name, "mode": "zip_single"}
+                        )
                         print(f"zip: {name} ({res['bytes']} bytes)", flush=True)
                     time.sleep(PACE_S)
             browser.close()
             got = len(downloaded_names)
             report["summary"] = {"files_downloaded": got, "mode": "zip"}
             (OUT / "fetch_report.json").write_text(
-                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
             print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
             return 0 if got else 1
-
 
         # --- 2d. clickdocs mode: drive the page's own download UI ------
         # The relay approach (zipAttacments with a captured token) is
@@ -406,10 +495,15 @@ def main():
                     url = resp.url
                     if "iplan" not in url:
                         return
-                    ctype = (resp.headers.get("content-type") or "").split(";")[0].lower()
-                    if ctype not in ("application/octet-stream", "application/pdf",
-                                     "application/msword",
-                                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+                    ctype = (
+                        (resp.headers.get("content-type") or "").split(";")[0].lower()
+                    )
+                    if ctype not in (
+                        "application/octet-stream",
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ):
                         return
                     seen_bin[0] += 1
                     body = resp.body()
@@ -434,8 +528,15 @@ def main():
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(body)
                     downloaded_names.add(path.name)
-                    report["downloads"].append({"file": path.name, "via": "page_issued_response",
-                                                "url": url[:200], "bytes": len(body), "ctype": ctype})
+                    report["downloads"].append(
+                        {
+                            "file": path.name,
+                            "via": "page_issued_response",
+                            "url": url[:200],
+                            "bytes": len(body),
+                            "ctype": ctype,
+                        }
+                    )
                     print(f"captured {path.name} ({len(body)} bytes)", flush=True)
                 except Exception:
                     pass
@@ -447,12 +548,14 @@ def main():
                 pass
 
             issued_urls = []
+
             def _on_request(req):
                 try:
                     if "Attacments/?eid=" in req.url:
                         issued_urls.append(req.url)
                 except Exception:
                     pass
+
             page.on("request", _on_request)
             report["issued_doc_urls"] = issued_urls
 
@@ -482,7 +585,9 @@ def main():
                         try:
                             el.click(timeout=4000)
                         except Exception:
-                            el.evaluate("e => { let n = e; for (let i = 0; i < 5 && n; i++) { if (n.getAttribute('href') || n.onclick || n.tagName === 'A' || n.tagName === 'BUTTON') break; n = n.parentElement; } (n || e).click(); }")
+                            el.evaluate(
+                                "e => { let n = e; for (let i = 0; i < 5 && n; i++) { if (n.getAttribute('href') || n.onclick || n.tagName === 'A' || n.tagName === 'BUTTON') break; n = n.parentElement; } (n || e).click(); }"
+                            )
                         time.sleep(1.5)
                         return True
                     except Exception:
@@ -511,24 +616,37 @@ def main():
             for attempt in range(3):
                 expand("מסמכים מופקדים")
                 try:
-                    if page.get_by_text(re.compile("מסמכי רקע לתכנית")).first.is_visible():
+                    if page.get_by_text(
+                        re.compile("מסמכי רקע לתכנית")
+                    ).first.is_visible():
                         mufkadim_open = True
                         break
                 except Exception:
                     pass
                 try:
-                    page.locator("text=מסמכים מופקדים").first.click(timeout=4000, force=True)
+                    page.locator("text=מסמכים מופקדים").first.click(
+                        timeout=4000, force=True
+                    )
                     time.sleep(2)
-                    if page.get_by_text(re.compile("מסמכי רקע לתכנית")).first.is_visible():
+                    if page.get_by_text(
+                        re.compile("מסמכי רקע לתכנית")
+                    ).first.is_visible():
                         mufkadim_open = True
                         break
                 except Exception:
                     pass
             expanded["מסמכים מופקדים"] = mufkadim_open
-            expanded["מסמכי רקע לתכנית"] = expand("מסמכי רקע לתכנית") if mufkadim_open else False
+            expanded["מסמכי רקע לתכנית"] = (
+                expand("מסמכי רקע לתכנית") if mufkadim_open else False
+            )
             if not expanded.get("מסמכי רקע לתכנית"):
-                report["failures"].append({"stage": "expand", "pattern": "מסמכי רקע לתכנית",
-                                           "error": "label_not_on_page"})
+                report["failures"].append(
+                    {
+                        "stage": "expand",
+                        "pattern": "מסמכי רקע לתכנית",
+                        "error": "label_not_on_page",
+                    }
+                )
             # plan-docs dropdown (e.g. "מסמכים מופקדים") may hide the
             # category's ZIP link until opened
             try:
@@ -544,34 +662,61 @@ def main():
                 pass
             # click each background-doc row by its visible name; the page
             # issues the exact Attacments URL itself (guessed fn 404s)
-            bg_names = ["בינוי ופיתוח", "בנין לשימור", "חוות דעת כלכלית",
-                        "מצב מאושר", "נספח חברתי", "נספח סביבה", "סקר עצים",
-                        "תנועה", "בינוי", "נוף", "טבלאות איזון והקצאה",
-                        "תדפיס הוראות התכנית", "תדפיס תשריט מצב מוצע"]
+            bg_names = [
+                "בינוי ופיתוח",
+                "בנין לשימור",
+                "חוות דעת כלכלית",
+                "מצב מאושר",
+                "נספח חברתי",
+                "נספח סביבה",
+                "סקר עצים",
+                "תנועה",
+                "בינוי",
+                "נוף",
+                "טבלאות איזון והקצאה",
+                "תדפיס הוראות התכנית",
+                "תדפיס תשריט מצב מוצע",
+            ]
             for nm in bg_names:
                 got = False
                 try:
-                    rows = page.locator(f'tr:has-text("{nm}"), li:has-text("{nm}"), div[role="row"]:has-text("{nm}")')
+                    rows = page.locator(
+                        f'tr:has-text("{nm}"), li:has-text("{nm}"), div[role="row"]:has-text("{nm}")'
+                    )
                     n = rows.count()
                     for ri in range(min(n, 4)):
                         row = rows.nth(ri)
                         try:
                             if not row.is_visible():
                                 continue
-                            for sel in ["img[src*='pdf' i]", "a[title*='הורד']",
-                                        "img[title*='הורד']", "[title*='צפיה']",
-                                        "a", "img"]:
+                            for sel in [
+                                "img[src*='pdf' i]",
+                                "a[title*='הורד']",
+                                "img[title*='הורד']",
+                                "[title*='צפיה']",
+                                "a",
+                                "img",
+                            ]:
                                 ic = row.locator(sel)
                                 if ic.count() == 0:
                                     continue
                                 dl = click_and_wait(ic.first, 5000)
                                 if dl:
-                                    path = OUT / "zips" / ("bg_" + safe_name(dl.suggested_filename))
+                                    path = (
+                                        OUT
+                                        / "zips"
+                                        / ("bg_" + safe_name(dl.suggested_filename))
+                                    )
                                     path.parent.mkdir(parents=True, exist_ok=True)
                                     dl.save_as(str(path))
                                     downloaded_names.add(path.name)
-                                    report["downloads"].append({"file": path.name, "via": "bg_row_click",
-                                                                "bytes": path.stat().st_size})
+                                    report["downloads"].append(
+                                        {
+                                            "file": path.name,
+                                            "via": "bg_row_click",
+                                            "bytes": path.stat().st_size,
+                                        }
+                                    )
                                     print(f"download: {path.name}", flush=True)
                                     got = True
                                     break
@@ -600,7 +745,9 @@ def main():
                   return out;
                 }""")
             except Exception as exc:
-                report["failures"].append({"stage": "dom_dump", "error": type(exc).__name__})
+                report["failures"].append(
+                    {"stage": "dom_dump", "error": type(exc).__name__}
+                )
 
             # decisions first (before any ZIP click can hang the page):
             # expand החלטות מוסדות תכנון, then open the docs it lists
@@ -617,7 +764,9 @@ def main():
                         except Exception:
                             continue
                 time.sleep(3)
-                page.screenshot(path=str(OUT / "clickdocs_meetings.png"), full_page=True)
+                page.screenshot(
+                    path=str(OUT / "clickdocs_meetings.png"), full_page=True
+                )
                 # each meeting row hides its docs behind "קבצים מצורפים"
                 for el in page.get_by_text(re.compile("קבצים מצורפים")).all():
                     try:
@@ -626,19 +775,30 @@ def main():
                             time.sleep(1.5)
                     except Exception:
                         continue
-                page.screenshot(path=str(OUT / "clickdocs_meetings2.png"), full_page=True)
+                page.screenshot(
+                    path=str(OUT / "clickdocs_meetings2.png"), full_page=True
+                )
                 try:
                     body_txt = page.inner_text("body")
                     k = body_txt.find("החלטות מוסדות")
-                    report["decisions_region_text"] = body_txt[k:k+2000] if k >= 0 else "header not found"
+                    report["decisions_region_text"] = (
+                        body_txt[k : k + 2000] if k >= 0 else "header not found"
+                    )
                 except Exception:
                     pass
                 idx2 = 0
-                for selector in ["a[href*='Attacments']", "a[href*='eid=']",
-                                 "img[title*='הורד']", "a[title*='הורד']",
-                                 "i[title*='הורד']", "span[title*='הורד']",
-                                 "img[src*='pdf' i]", "img[alt*='PDF' i]",
-                                 "[title*='צפיה']", "[title*='צפי']"]:
+                for selector in [
+                    "a[href*='Attacments']",
+                    "a[href*='eid=']",
+                    "img[title*='הורד']",
+                    "a[title*='הורד']",
+                    "i[title*='הורד']",
+                    "span[title*='הורד']",
+                    "img[src*='pdf' i]",
+                    "img[alt*='PDF' i]",
+                    "[title*='צפיה']",
+                    "[title*='צפי']",
+                ]:
                     dloc = page.locator(selector)
                     j = 0
                     while j < dloc.count():
@@ -652,8 +812,9 @@ def main():
                             pass
                         j += 1
             except Exception as exc:
-                report["failures"].append({"stage": "meetings_tab",
-                                           "error": type(exc).__name__})
+                report["failures"].append(
+                    {"stage": "meetings_tab", "error": type(exc).__name__}
+                )
 
             # every visible category ZIP link: each is a distinct
             # page-issued download of one document category
@@ -667,7 +828,9 @@ def main():
                         # the מסמכים מופקדים panel may have collapsed
                         # mid-loop; reopen it and retry once
                         try:
-                            for dd in page.get_by_text(re.compile("מסמכים מופקדים")).all():
+                            for dd in page.get_by_text(
+                                re.compile("מסמכים מופקדים")
+                            ).all():
                                 if dd.is_visible():
                                     dd.click(timeout=4000)
                                     break
@@ -679,12 +842,19 @@ def main():
                         idx += 1
                         dl = click_and_wait(el, 6000)
                         if dl:
-                            path = OUT / "zips" / f"cat{idx:02d}_" + safe_name(dl.suggested_filename)
+                            path = OUT / "zips" / f"cat{idx:02d}_" + safe_name(
+                                dl.suggested_filename
+                            )
                             path.parent.mkdir(parents=True, exist_ok=True)
                             dl.save_as(str(path))
                             downloaded_names.add(path.name)
-                            report["downloads"].append({"file": path.name, "via": "category_zip",
-                                                        "bytes": path.stat().st_size})
+                            report["downloads"].append(
+                                {
+                                    "file": path.name,
+                                    "via": "category_zip",
+                                    "bytes": path.stat().st_size,
+                                }
+                            )
                             print(f"download: {path.name}", flush=True)
                         time.sleep(2)
                 except Exception:
@@ -709,14 +879,20 @@ def main():
             report["inpage"] = []
 
             def inpage_get(eid, name):
-                fn_variants = [f"{PLAN}_{name}.pdf",
-                               f"{PLAN}_{name}_".encode().decode() ,
-                               f"DOC_{eid}.pdf", ""]
+                fn_variants = [
+                    f"{PLAN}_{name}.pdf",
+                    f"{PLAN}_{name}_".encode().decode(),
+                    f"DOC_{eid}.pdf",
+                    "",
+                ]
                 for fn in fn_variants:
-                    url = (f"{BASE}/rest/api/Attacments/?eid={eid}"
-                           f"&fn={_quote(fn)}&edn=temp-default&pn={PLAN}")
+                    url = (
+                        f"{BASE}/rest/api/Attacments/?eid={eid}"
+                        f"&fn={_quote(fn)}&edn=temp-default&pn={PLAN}"
+                    )
                     try:
-                        res = page.evaluate("""async (url) => {
+                        res = page.evaluate(
+                            """async (url) => {
                           const r = await fetch(url, {credentials: 'include'});
                           const b = await r.arrayBuffer();
                           const u8 = new Uint8Array(b);
@@ -725,17 +901,29 @@ def main():
                             s += String.fromCharCode.apply(null, u8.subarray(i, i + 65536));
                           }
                           return {status: r.status, ctype: r.headers.get('content-type') || '', b64: btoa(s)};
-                        }""", url)
+                        }""",
+                            url,
+                        )
                     except Exception as exc:
-                        report["failures"].append({"stage": "inpage_fetch", "doc": name,
-                                                   "error": type(exc).__name__})
+                        report["failures"].append(
+                            {
+                                "stage": "inpage_fetch",
+                                "doc": name,
+                                "error": type(exc).__name__,
+                            }
+                        )
                         return False
                     body = _b64.b64decode(res["b64"]) if res.get("b64") else b""
-                    report["inpage"].append({"eid": eid, "fn": fn[:30],
-                                             "status": res.get("status"),
-                                             "ctype": (res.get("ctype") or "")[:60],
-                                             "bytes": len(body),
-                                             "head": body[:40].hex()})
+                    report["inpage"].append(
+                        {
+                            "eid": eid,
+                            "fn": fn[:30],
+                            "status": res.get("status"),
+                            "ctype": (res.get("ctype") or "")[:60],
+                            "bytes": len(body),
+                            "head": body[:40].hex(),
+                        }
+                    )
                     if res.get("status") != 200 or not body:
                         continue
                     low = body[:200000].lower()
@@ -758,8 +946,14 @@ def main():
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(body)
                     downloaded_names.add(path.name)
-                    report["downloads"].append({"file": path.name, "via": "inpage_fetch",
-                                                "eid": eid, "bytes": len(body)})
+                    report["downloads"].append(
+                        {
+                            "file": path.name,
+                            "via": "inpage_fetch",
+                            "eid": eid,
+                            "bytes": len(body),
+                        }
+                    )
                     print(f"inpage {path.name} ({len(body)} bytes)", flush=True)
                     return True
                 return False
@@ -767,8 +961,9 @@ def main():
             extra_lists = []
             if doc_list_path:
                 extra_lists.append(doc_list_path)
-            dec_path = os.environ.get("MAVAT_DEC_LIST",
-                                      f"data/mavat_declist_{PLAN}.json")
+            dec_path = os.environ.get(
+                "MAVAT_DEC_LIST", f"data/mavat_declist_{PLAN}.json"
+            )
             if os.path.exists(dec_path):
                 extra_lists.append(dec_path)
             for lp in extra_lists:
@@ -780,14 +975,20 @@ def main():
                 except Challenge:
                     raise
                 except Exception as exc:
-                    report["failures"].append({"stage": "inpage_list", "list": lp,
-                                               "error": type(exc).__name__})
+                    report["failures"].append(
+                        {
+                            "stage": "inpage_list",
+                            "list": lp,
+                            "error": type(exc).__name__,
+                        }
+                    )
 
             browser.close()
             got = len(downloaded_names)
             report["summary"] = {"files_downloaded": got, "mode": "clickdocs"}
             (OUT / "fetch_report.json").write_text(
-                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+                json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
             print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
             return 0 if got else 1
 
@@ -798,8 +999,13 @@ def main():
         def on_request(req):
             try:
                 if "ttacments" in req.url:
-                    req_log.append({"method": req.method, "url": req.url[:400],
-                                    "post": (req.post_data or "")[:400]})
+                    req_log.append(
+                        {
+                            "method": req.method,
+                            "url": req.url[:400],
+                            "post": (req.post_data or "")[:400],
+                        }
+                    )
             except Exception:
                 pass
 
@@ -812,8 +1018,9 @@ def main():
                 time.sleep(wait)
                 return True
             except Exception as exc:
-                report["failures"].append({"stage": "expand", "pattern": pattern,
-                                           "error": type(exc).__name__})
+                report["failures"].append(
+                    {"stage": "expand", "pattern": pattern, "error": type(exc).__name__}
+                )
                 return False
 
         # the documents accordion and the background-docs category inside it
@@ -824,7 +1031,9 @@ def main():
 
         # collect short visible texts for the artifact (page structure log)
         try:
-            texts = page.locator("a, button, [role='tab'], [role='button'], span, div").all_inner_texts()
+            texts = page.locator(
+                "a, button, [role='tab'], [role='button'], span, div"
+            ).all_inner_texts()
             short = sorted({t.strip() for t in texts if 0 < len(t.strip()) <= 60})
             save_body(".", "visible_texts.txt", ("\n".join(short)).encode("utf-8"))
         except Exception:
@@ -842,12 +1051,20 @@ def main():
                 try:
                     if not el.is_visible():
                         continue
-                    desc = ((el.get_attribute("title") or "") + " " +
-                            (el.get_attribute("href") or "") + " " +
-                            (el.get_attribute("src") or "") + " " +
-                            (el.get_attribute("class") or "") + " " +
-                            (el.inner_text() or "")[:30])
-                    if not re.search(r"הורד|pdf|zip|PDF|ZIP|attach|download|מסמך", desc, re.I):
+                    desc = (
+                        (el.get_attribute("title") or "")
+                        + " "
+                        + (el.get_attribute("href") or "")
+                        + " "
+                        + (el.get_attribute("src") or "")
+                        + " "
+                        + (el.get_attribute("class") or "")
+                        + " "
+                        + (el.inner_text() or "")[:30]
+                    )
+                    if not re.search(
+                        r"הורד|pdf|zip|PDF|ZIP|attach|download|מסמך", desc, re.I
+                    ):
                         continue
                     if desc in seen_clicks:
                         continue
@@ -860,7 +1077,9 @@ def main():
                         path.parent.mkdir(parents=True, exist_ok=True)
                         dl.save_as(str(path))
                         downloaded_names.add(path.name)
-                        report["downloads"].append({"file": path.name, "via": desc[:80]})
+                        report["downloads"].append(
+                            {"file": path.name, "via": desc[:80]}
+                        )
                         print(f"download: {path.name}", flush=True)
                     except Exception:
                         pass
@@ -872,8 +1091,11 @@ def main():
                 break
 
         # learned request shapes go to the artifact (public URLs only)
-        save_body(".", "attacments_requests.json",
-                  json.dumps(req_log, ensure_ascii=False, indent=1).encode("utf-8"))
+        save_body(
+            ".",
+            "attacments_requests.json",
+            json.dumps(req_log, ensure_ascii=False, indent=1).encode("utf-8"),
+        )
 
         # admin-comments tab text (if visible anywhere on the page)
         try:
@@ -885,11 +1107,14 @@ def main():
 
         # --- 4. fetch every document URL the page/API exposed ---
         # keep URLs that look like documents or download endpoints
-        cand = sorted(u for u in doc_urls
-                      if any(e in u.lower() for e in DOC_EXT)
-                      or "download" in u.lower()
-                      or "attachment" in u.lower()
-                      or "attacment" in u.lower())
+        cand = sorted(
+            u
+            for u in doc_urls
+            if any(e in u.lower() for e in DOC_EXT)
+            or "download" in u.lower()
+            or "attachment" in u.lower()
+            or "attacment" in u.lower()
+        )
         print(f"document URL candidates: {len(cand)}", flush=True)
         for i, u in enumerate(cand[:MAX_DOWNLOADS]):
             full = u if u.startswith("http") else BASE + u
@@ -902,22 +1127,42 @@ def main():
                 if any(m.encode() in low for m in CHALLENGE_MARKERS):
                     raise Challenge()
                 if r.status != 200 or not body or "html" in ctype:
-                    report["downloads"].append({"url": full[-160:], "status": r.status,
-                                                "skipped": True, "ctype": ctype})
+                    report["downloads"].append(
+                        {
+                            "url": full[-160:],
+                            "status": r.status,
+                            "skipped": True,
+                            "ctype": ctype,
+                        }
+                    )
                     continue
-                ext = ".pdf" if body[:4] == b"%PDF" else (".zip" if body[:2] == b"PK" else "")
-                fname = name if name.lower().endswith(DOC_EXT) else name + (ext or ".bin")
+                ext = (
+                    ".pdf"
+                    if body[:4] == b"%PDF"
+                    else (".zip" if body[:2] == b"PK" else "")
+                )
+                fname = (
+                    name if name.lower().endswith(DOC_EXT) else name + (ext or ".bin")
+                )
                 if fname in downloaded_names:
                     continue
                 downloaded_names.add(fname)
                 save_body("docs", fname, body)
-                report["downloads"].append({"url": full[-160:], "file": fname,
-                                            "bytes": len(body), "ctype": ctype})
+                report["downloads"].append(
+                    {
+                        "url": full[-160:],
+                        "file": fname,
+                        "bytes": len(body),
+                        "ctype": ctype,
+                    }
+                )
                 print(f"saved {fname} ({len(body)} bytes)", flush=True)
             except Challenge:
                 raise
             except Exception as exc:
-                report["failures"].append({"stage": "doc_fetch", "error": type(exc).__name__})
+                report["failures"].append(
+                    {"stage": "doc_fetch", "error": type(exc).__name__}
+                )
             time.sleep(PACE_S)
 
         browser.close()
@@ -927,15 +1172,19 @@ def main():
     api_dir.mkdir(parents=True, exist_ok=True)
     for i, item in enumerate(xhr_bodies):
         (api_dir / f"xhr_{i:02d}.json").write_text(
-            json.dumps(item, ensure_ascii=False, indent=1), encoding="utf-8")
+            json.dumps(item, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
 
     got = len(downloaded_names) + sum(1 for c in report["clicks"] if c.get("download"))
-    report["summary"] = {"files_downloaded": len(downloaded_names),
-                         "zips_captured": sum(1 for c in report["clicks"] if c.get("download")),
-                         "xhr_recorded": len(report["xhr"]),
-                         "rest_served": sum(1 for r in report["rest_json"] if r.get("served_json"))}
+    report["summary"] = {
+        "files_downloaded": len(downloaded_names),
+        "zips_captured": sum(1 for c in report["clicks"] if c.get("download")),
+        "xhr_recorded": len(report["xhr"]),
+        "rest_served": sum(1 for r in report["rest_json"] if r.get("served_json")),
+    }
     (OUT / "fetch_report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
     return 0 if got else 1
 
@@ -948,8 +1197,11 @@ if __name__ == "__main__":
         try:
             OUT.mkdir(parents=True, exist_ok=True)
             (OUT / "fetch_report.json").write_text(
-                json.dumps({**report, "stopped": "challenge"}, ensure_ascii=False, indent=1),
-                encoding="utf-8")
+                json.dumps(
+                    {**report, "stopped": "challenge"}, ensure_ascii=False, indent=1
+                ),
+                encoding="utf-8",
+            )
         except Exception:
             pass
         sys.exit(2)

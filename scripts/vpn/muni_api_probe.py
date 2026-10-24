@@ -6,6 +6,7 @@ calls in the browser. Public data only, no login. Any hard block
 (Akamai Access Denied / challenge) is recorded and stops that request;
 we never retry with rotated headers.
 """
+
 import json, os, sys, time
 import urllib.request
 
@@ -21,20 +22,56 @@ CALLS = [
     ("archiv_info", 242700447, {"tikNum": "1377753", "systemCode": "26400046"}),
     ("archiv_info_alt", 242700448, {"SystemID": "26400046", "TikNum": "1377753"}),
     # taba-file search by gush/helka (user asked: gush 30007 helka 31-33)
-    ("taba_by_gush_helka_31", 242700470, {"misparTaba": "", "gush": "30007", "helka": "31", "rehovCode": "", "mispBait": ""}),
-    ("taba_by_gush_helka_32", 242700470, {"misparTaba": "", "gush": "30007", "helka": "32", "rehovCode": "", "mispBait": ""}),
-    ("taba_by_gush_helka_33", 242700470, {"misparTaba": "", "gush": "30007", "helka": "33", "rehovCode": "", "mispBait": ""}),
+    (
+        "taba_by_gush_helka_31",
+        242700470,
+        {
+            "misparTaba": "",
+            "gush": "30007",
+            "helka": "31",
+            "rehovCode": "",
+            "mispBait": "",
+        },
+    ),
+    (
+        "taba_by_gush_helka_32",
+        242700470,
+        {
+            "misparTaba": "",
+            "gush": "30007",
+            "helka": "32",
+            "rehovCode": "",
+            "mispBait": "",
+        },
+    ),
+    (
+        "taba_by_gush_helka_33",
+        242700470,
+        {
+            "misparTaba": "",
+            "gush": "30007",
+            "helka": "33",
+            "rehovCode": "",
+            "mispBait": "",
+        },
+    ),
 ]
 
 report = []
 for label, proc, params in CALLS:
-    body = json.dumps({"ProcName": proc, "Cnn": "cnnGisYk", "Parameters": params}).encode()
-    req = urllib.request.Request(API, data=body, headers={
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-        "Origin": "https://ykpubdata.jerusalem.muni.il",
-        "Referer": "https://ykpubdata.jerusalem.muni.il/",
-    })
+    body = json.dumps(
+        {"ProcName": proc, "Cnn": "cnnGisYk", "Parameters": params}
+    ).encode()
+    req = urllib.request.Request(
+        API,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Origin": "https://ykpubdata.jerusalem.muni.il",
+            "Referer": "https://ykpubdata.jerusalem.muni.il/",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
             raw = r.read()
@@ -47,7 +84,13 @@ for label, proc, params in CALLS:
         print(f"{label}: ERROR {e}", flush=True)
         continue
     blocked = b"Access Denied" in raw[:4000] and b"edgesuite" in raw[:4000]
-    entry = {"label": label, "proc": proc, "status": status, "bytes": len(raw), "akamai_block": bool(blocked)}
+    entry = {
+        "label": label,
+        "proc": proc,
+        "status": status,
+        "bytes": len(raw),
+        "akamai_block": bool(blocked),
+    }
     if not blocked and status == 200:
         fn = os.path.join(OUT, f"{label}.json")
         with open(fn, "wb") as f:

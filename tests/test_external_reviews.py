@@ -9,8 +9,14 @@ from ginot import external_reviews as er
 from ginot import page
 
 ROOT = Path(__file__).resolve().parents[1]
-OK = {"id": "x1", "pl_number": "101-1", "agent_name": "Test Bot", "text": "t" * 60,
-      "submitted": "2026-10-22", "approved": "2026-10-23"}
+OK = {
+    "id": "x1",
+    "pl_number": "101-1",
+    "agent_name": "Test Bot",
+    "text": "t" * 60,
+    "submitted": "2026-10-22",
+    "approved": "2026-10-23",
+}
 
 
 def test_live_file_is_valid():
@@ -20,8 +26,13 @@ def test_live_file_is_valid():
 def test_validation_rejects_bad_entries():
     assert er.validate_entries([OK]) == []
     assert er.validate_entries([OK, dict(OK)])  # duplicate id
-    for bad in ({"text": "see https://x.example " + "t" * 40}, {"text": "<b>" + "t" * 60},
-                {"text": "short"}, {"agent_name": "bad<name>"}, {"approved": "yesterday"}):
+    for bad in (
+        {"text": "see https://x.example " + "t" * 40},
+        {"text": "<b>" + "t" * 60},
+        {"text": "short"},
+        {"agent_name": "bad<name>"},
+        {"approved": "yesterday"},
+    ):
         assert er.validate_entries([{**OK, **bad}]), bad
     assert er.validate_entries([{k: v for k, v in OK.items() if k != "id"}])
 
@@ -47,13 +58,29 @@ def test_ci_guard_script_fails_on_modified_entry(tmp_path):
     run("git", "add", ".")
     run("git", "commit", "-qm", "base")
     script = ROOT / "scripts/ci/check_external_reviews.py"
-    (repo / "data/external_reviews.json").write_text(json.dumps({"entries": [{**OK, "text": "e" * 60}]}))
-    r = subprocess.run([sys.executable, str(script), "--base", "main"], cwd=repo, capture_output=True, text=True, check=False,
-                       env={"PATH": "/usr/bin:/bin"})
+    (repo / "data/external_reviews.json").write_text(
+        json.dumps({"entries": [{**OK, "text": "e" * 60}]})
+    )
+    r = subprocess.run(
+        [sys.executable, str(script), "--base", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
     assert r.returncode == 1 and "modified" in r.stdout
-    (repo / "data/external_reviews.json").write_text(json.dumps({"entries": [OK, {**OK, "id": "x2"}]}))
-    r = subprocess.run([sys.executable, str(script), "--base", "main"], cwd=repo, capture_output=True, text=True, check=False,
-                       env={"PATH": "/usr/bin:/bin"})
+    (repo / "data/external_reviews.json").write_text(
+        json.dumps({"entries": [OK, {**OK, "id": "x2"}]})
+    )
+    r = subprocess.run(
+        [sys.executable, str(script), "--base", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
     assert r.returncode == 0, r.stdout
 
 
@@ -66,13 +93,21 @@ def test_section_is_labelled_collapsed_and_escaped():
 
 @pytest.mark.parametrize("entries,shown", [([OK], True), ([], False)])
 def test_review_page_shows_section_after_our_review(entries, shown):
-    out = page.render_review("101-1", "# our review", "2026-10-22", "c", external_html=er.render_section(entries, "101-1"))
+    out = page.render_review(
+        "101-1",
+        "# our review",
+        "2026-10-22",
+        "c",
+        external_html=er.render_section(entries, "101-1"),
+    )
     assert ("external-reviews" in out) is shown
     if shown:
         assert out.index("our review") < out.index("external-reviews")
 
 
 def test_external_review_css_is_in_generated_stylesheet(tmp_path):
-    page.render_site([], [], str(tmp_path), external_reviews_path=str(tmp_path / "none.json"))
+    page.render_site(
+        [], [], str(tmp_path), external_reviews_path=str(tmp_path / "none.json")
+    )
     css = (tmp_path / "style.css").read_text(encoding="utf-8")
     assert ".external-reviews" in css and ".ext-meta" in css

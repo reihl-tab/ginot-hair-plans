@@ -1,4 +1,5 @@
 """Tiered re-check B (issue #344): permit_feed --parcel-list. No network."""
+
 import importlib.util
 import json
 import pathlib
@@ -13,30 +14,75 @@ spec.loader.exec_module(pf)
 
 def _setup(tmp_path, monkeypatch, with_prior_address=True):
     parcels = tmp_path / "parcels.geojson"
-    parcels.write_text(json.dumps({"features": [
-        {"properties": {"gush": 1, "helka": 1}}, {"properties": {"gush": 2, "helka": 2}}]}))
+    parcels.write_text(
+        json.dumps(
+            {
+                "features": [
+                    {"properties": {"gush": 1, "helka": 1}},
+                    {"properties": {"gush": 2, "helka": 2}},
+                ]
+            }
+        )
+    )
     plist = tmp_path / "list.json"
-    plist.write_text(json.dumps([[2, 2], [9, 9], [2, 2]]))  # unknown parcel and duplicate
+    plist.write_text(
+        json.dumps([[2, 2], [9, 9], [2, 2]])
+    )  # unknown parcel and duplicate
     out = tmp_path / "feed.json"
     prior = {"tik_num": "T1", "status": "old", "gush": 2, "helka": 2}
     if with_prior_address:
         prior["address"] = "Cached St 1"
-    out.write_text(json.dumps({"batch": {"offset": 680, "limit": 280}, "requests": [prior]}))
+    out.write_text(
+        json.dumps({"batch": {"offset": 680, "limit": 280}, "requests": [prior]})
+    )
     scanned = []
     monkeypatch.setattr(pf.time, "sleep", lambda _: None)
-    monkeypatch.setattr(pf, "call", lambda proc, params: scanned.append((params["gush"], params["helka"]))
-                        or [{"tik_num": "T1", "teurStatus": "new", "taarih_status": "01/01/2026"}])
-    monkeypatch.setattr(pf, "publication_dates", lambda tik: ("2026-10-01", "2026-12-01"))
+    monkeypatch.setattr(
+        pf,
+        "call",
+        lambda proc, params: (
+            scanned.append((params["gush"], params["helka"]))
+            or [{"tik_num": "T1", "teurStatus": "new", "taarih_status": "01/01/2026"}]
+        ),
+    )
+    monkeypatch.setattr(
+        pf, "publication_dates", lambda tik: ("2026-10-01", "2026-12-01")
+    )
     addr = []
-    monkeypatch.setattr(pf, "address_of", lambda tik: addr.append(tik) or "Fetched St 2")
+    monkeypatch.setattr(
+        pf, "address_of", lambda tik: addr.append(tik) or "Fetched St 2"
+    )
     monkeypatch.setenv("GH_TOKEN", "fake")
     monkeypatch.setenv("GITHUB_REPOSITORY", "example/repo")
-    monkeypatch.setattr(pf, "load_checkpoint", lambda *_: (_ for _ in ()).throw(
-        AssertionError("list mode must not read the scan checkpoint")))
-    monkeypatch.setattr(pf, "push_checkpoint", lambda *a: (_ for _ in ()).throw(
-        AssertionError("list mode must not write the scan checkpoint")))
-    monkeypatch.setattr(sys, "argv", ["permit_feed", "--parcels", str(parcels), "--out", str(out),
-                                    "--parcel-list", str(plist), "--checkpoint", "--resume"])
+    monkeypatch.setattr(
+        pf,
+        "load_checkpoint",
+        lambda *_: (_ for _ in ()).throw(
+            AssertionError("list mode must not read the scan checkpoint")
+        ),
+    )
+    monkeypatch.setattr(
+        pf,
+        "push_checkpoint",
+        lambda *a: (_ for _ in ()).throw(
+            AssertionError("list mode must not write the scan checkpoint")
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "permit_feed",
+            "--parcels",
+            str(parcels),
+            "--out",
+            str(out),
+            "--parcel-list",
+            str(plist),
+            "--checkpoint",
+            "--resume",
+        ],
+    )
     return out, scanned, addr
 
 

@@ -4,6 +4,7 @@ Public data only: the committed council boundary polygon plus a few counts
 from the plan table. Returns False (and writes nothing) when Pillow or a
 Hebrew-capable font is missing, so the page then omits the og:image tags.
 """
+
 import json
 import math
 
@@ -19,6 +20,7 @@ NAVY, TEAL, GOLD, PAPER = (20, 33, 61), (42, 157, 143), (252, 163, 17), (245, 24
 
 def _font(size):
     from PIL import ImageFont
+
     for p in FONT_PATHS:
         try:
             return ImageFont.truetype(p, size, layout_engine=ImageFont.Layout.BASIC)
@@ -59,7 +61,10 @@ def _draw_map(draw, rings, box):
     for gy in range(y0, y1 + 1, 40):
         draw.line([(x0, gy), (x1, gy)], fill=(36, 52, 88), width=1)
     for ring in rings:
-        poly = [(ox + (p[0] * k - min(xs)) * scale, oy + (max(ys) - p[1]) * scale) for p in ring]
+        poly = [
+            (ox + (p[0] * k - min(xs)) * scale, oy + (max(ys) - p[1]) * scale)
+            for p in ring
+        ]
         draw.polygon(poly, fill=(42, 157, 143, 255), outline=GOLD)
         draw.line(poly + [poly[0]], fill=GOLD, width=4)
 
@@ -88,22 +93,54 @@ def render_preview(rows, council_name, generated, geojson_path, out_path) -> boo
     right("תכניות תכנון ובנייה", 80, big, PAPER)
     right(council_name, 165, big, GOLD)
     right("מעקב אחר תכניות והיתרים", 255, mid, (190, 200, 220))
-    active = sum(1 for r in rows if any(k in (r.get("station_desc") or "") for k in
-                                        ("הפקדה", "תנאים", "הכרעה", "בדיקה", "בהליך")))
+    active = sum(
+        1
+        for r in rows
+        if any(
+            k in (r.get("station_desc") or "")
+            for k in ("הפקדה", "תנאים", "הכרעה", "בדיקה", "בהליך")
+        )
+    )
     open_obj = sum(1 for r in rows if r.get("_open_obj"))
-    cards = [(len(rows), "תכניות במעקב"), (active, "בהליך"), (open_obj, "פתוח להתנגדות")]
+    cards = [
+        (len(rows), "תכניות במעקב"),
+        (active, "בהליך"),
+        (open_obj, "פתוח להתנגדות"),
+    ]
     x = W - 70
     for n, label in cards:
         cw = 210
-        d.rounded_rectangle([x - cw, 340, x, 500], radius=18, fill=(30, 48, 86), outline=TEAL, width=2)
+        d.rounded_rectangle(
+            [x - cw, 340, x, 500], radius=18, fill=(30, 48, 86), outline=TEAL, width=2
+        )
         num = str(n)
-        d.text((x - cw / 2 - d.textlength(num, font=big) / 2, 355), num, font=big, fill=GOLD)
+        d.text(
+            (x - cw / 2 - d.textlength(num, font=big) / 2, 355),
+            num,
+            font=big,
+            fill=GOLD,
+        )
         t = _heb(label)
-        d.text((x - cw / 2 - d.textlength(t, font=small) / 2, 450), t, font=small, fill=PAPER)
+        d.text(
+            (x - cw / 2 - d.textlength(t, font=small) / 2, 450),
+            t,
+            font=small,
+            fill=PAPER,
+        )
         x -= cw + 20
-    d.text((W - 70 - d.textlength(str(generated), font=small), 545), str(generated), font=small,
-           fill=(150, 165, 195))
-    right("עודכן", 545, small, (150, 165, 195), x=W - 70 - d.textlength(str(generated), font=small) - 14)
+    d.text(
+        (W - 70 - d.textlength(str(generated), font=small), 545),
+        str(generated),
+        font=small,
+        fill=(150, 165, 195),
+    )
+    right(
+        "עודכן",
+        545,
+        small,
+        (150, 165, 195),
+        x=W - 70 - d.textlength(str(generated), font=small) - 14,
+    )
     img.save(out_path, "PNG", optimize=True)
     return True
 
@@ -115,6 +152,7 @@ def render_review_preview(row, generated, out_path):
     default site card instead of publishing reversed identifiers. No tiles.
     """
     import os
+
     try:
         from PIL import Image, ImageDraw, ImageFont, features
     except ImportError:

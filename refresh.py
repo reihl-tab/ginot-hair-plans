@@ -8,6 +8,7 @@ Usage:
 The refresh is designed to run from any free scheduler (see README): it is a
 plain script with no GitHub Actions dependency.
 """
+
 import argparse
 import json
 import os
@@ -26,10 +27,9 @@ def load_council(path):
     # committed GeoJSON is WGS84; project back to EPSG:2039 for the query
     import shapely
     from pyproj import Transformer
+
     t = Transformer.from_crs("EPSG:4326", "EPSG:2039", always_xy=True)
     return shapely.transform(shape(gj["geometry"]), t.transform, interleaved=False)
-
-
 
 
 def merge_land_status(rows, land_path="data/land_plan_status.json"):
@@ -41,6 +41,7 @@ def merge_land_status(rows, land_path="data/land_plan_status.json"):
     deadline is recomputed as max(iplan publication, land status date) + 60d.
     """
     import datetime as _dt
+
     try:
         with open(land_path, encoding="utf-8") as fh:
             land = json.load(fh).get("plans", {})
@@ -54,22 +55,31 @@ def merge_land_status(rows, land_path="data/land_plan_status.json"):
         r["land_status_date"] = info.get("land_status_date")
         r["land_plan_id"] = info.get("land_plan_id")
         if info.get("is_deposit_publication") and info.get("land_status_date"):
-            pubs = [d for d in (r.get("pl_date_advertise"), info["land_status_date"]) if d]
+            pubs = [
+                d for d in (r.get("pl_date_advertise"), info["land_status_date"]) if d
+            ]
             if pubs:
                 latest = max(pubs)
-                dl = (_dt.date.fromisoformat(latest)
-                      + _dt.timedelta(days=outputs.OBJECTION_WINDOW_DAYS)).isoformat()
+                dl = (
+                    _dt.date.fromisoformat(latest)
+                    + _dt.timedelta(days=outputs.OBJECTION_WINDOW_DAYS)
+                ).isoformat()
                 if dl != r.get("objection_deadline_derived_60d_from_publication"):
                     r["objection_deadline_derived_60d_from_publication"] = dl
-                    r["deadline_source_note"] = "max(iplan, land.gov.il) publication + 60d"
+                    r["deadline_source_note"] = (
+                        "max(iplan, land.gov.il) publication + 60d"
+                    )
     return rows
+
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--council", default="data/council_ginot_hair.geojson")
     ap.add_argument("--out", default="out")
     ap.add_argument("--site", default="docs")
-    ap.add_argument("--base-url", default="https://reihlinstinct.github.io/ginot-hair-plans/")
+    ap.add_argument(
+        "--base-url", default="https://reihlinstinct.github.io/ginot-hair-plans/"
+    )
     ap.add_argument("--snapshots", default="snapshots")
     ap.add_argument("--status", default="data/plan_status.json")
     args = ap.parse_args()
@@ -80,14 +90,21 @@ def main():
     features = iplan.query_plans(council, service="xplan_without_77_78")
     # Store representative points only. Boundaries are requested live in visitors' browsers.
     from ginot.mapdata import feature_collection
+
     prepared_map = feature_collection(features)
     os.makedirs(args.site, exist_ok=True)
     with open(f"{args.site}/plan-points.json", "w", encoding="utf-8") as points_file:
-        json.dump({"generated": today_il().isoformat(),
-                   "source": "Planning Administration public ArcGIS",
-                   "missing_geometry": prepared_map["missing_geometry"],
-                   "points": [f["properties"] for f in prepared_map["features"]]},
-                  points_file, ensure_ascii=False, separators=(",", ":"))
+        json.dump(
+            {
+                "generated": today_il().isoformat(),
+                "source": "Planning Administration public ArcGIS",
+                "missing_geometry": prepared_map["missing_geometry"],
+                "points": [f["properties"] for f in prepared_map["features"]],
+            },
+            points_file,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
     rows = outputs.rows_from_features(features, council)
     states = tracking.load(args.status)
     rows, changed_defaults = tracking.merge(rows, states)
@@ -109,10 +126,15 @@ def main():
     outputs.write_xlsx(rows, f"{args.out}/ginot_hair_plans.xlsx")
 
     feats77 = iplan.query_plans(council, service="Xplan_77_78", return_geometry=False)
-    slim = [{ "pl_number": f["attributes"].get("pl_number"),
-              "pl_name": f["attributes"].get("pl_name"),
-              "station_desc": f["attributes"].get("station_desc"),
-              "mavat_url": f["attributes"].get("pl_url")} for f in feats77]
+    slim = [
+        {
+            "pl_number": f["attributes"].get("pl_number"),
+            "pl_name": f["attributes"].get("pl_name"),
+            "station_desc": f["attributes"].get("station_desc"),
+            "mavat_url": f["attributes"].get("pl_url"),
+        }
+        for f in feats77
+    ]
 
     snap_path = f"{args.snapshots}/latest.json"
     old_rows = []
@@ -121,42 +143,65 @@ def main():
             old_rows = json.load(fh)["rows"]
     changes = diff.diff_snapshots(old_rows, rows)
     with open(f"{args.out}/changes.json", "w", encoding="utf-8") as fh:
-        json.dump({"date": today_il().isoformat(), "changes": changes},
-                  fh, ensure_ascii=False)
+        json.dump(
+            {"date": today_il().isoformat(), "changes": changes}, fh, ensure_ascii=False
+        )
     with open(snap_path, "w", encoding="utf-8") as fh:
-        json.dump({"date": today_il().isoformat(), "rows": rows,
-                   "plans_77_78": slim}, fh, ensure_ascii=False)
+        json.dump(
+            {"date": today_il().isoformat(), "rows": rows, "plans_77_78": slim},
+            fh,
+            ensure_ascii=False,
+        )
     import subprocess
+
     subprocess.run([sys.executable, "scripts/build_site_index.py"], check=False)
-    page.render_site(rows, changes, args.site, base_url=args.base_url,
-                     permits_path="data/permit_requests.json", council_geojson=args.council)
+    page.render_site(
+        rows,
+        changes,
+        args.site,
+        base_url=args.base_url,
+        permits_path="data/permit_requests.json",
+        council_geojson=args.council,
+    )
     badge_dir = os.path.join(args.site, "badge")
     os.makedirs(badge_dir, exist_ok=True)
-    for name, msg, color in [("plans", str(len(rows)), "blue"),
-                             ("updated", today_il().isoformat(), "green")]:
+    for name, msg, color in [
+        ("plans", str(len(rows)), "blue"),
+        ("updated", today_il().isoformat(), "green"),
+    ]:
         with open(os.path.join(badge_dir, f"{name}.json"), "w") as fh:
-            json.dump({"schemaVersion": 1, "label": name, "message": msg, "color": color}, fh)
+            json.dump(
+                {"schemaVersion": 1, "label": name, "message": msg, "color": color}, fh
+            )
     # per-status plan-count badges (stable slugs for README links)
     from collections import Counter
+
     # match order matters: "במילוי תנאים להפקדה" is conditions, not deposit;
     # "הכרעה ... / אישור" is decision, not approved
     # English badge labels: Hebrew renders badly in shields badges (#30)
-    slug = {"תנאים": ("status_conditions", "purple", "Fulfilling conditions"),
-            "הפקדה": ("status_deposit", "orange", "Deposit for objections"),
-            "בדיקה": ("status_review", "blue", "Planning review"),
-            "הכרעה": ("status_decision", "yellow", "Decision on objections"),
-            "בהליך": ("status_inproc", "brightgreen", "In approval process"),
-            "אישור": ("status_approved", "green", "Approved")}
+    slug = {
+        "תנאים": ("status_conditions", "purple", "Fulfilling conditions"),
+        "הפקדה": ("status_deposit", "orange", "Deposit for objections"),
+        "בדיקה": ("status_review", "blue", "Planning review"),
+        "הכרעה": ("status_decision", "yellow", "Decision on objections"),
+        "בהליך": ("status_inproc", "brightgreen", "In approval process"),
+        "אישור": ("status_approved", "green", "Approved"),
+    }
     counts = Counter(r.get("station_desc") or "(ללא)" for r in rows)
     written = set()
     for st, n in sorted(counts.items()):
-        fname, color, label = next((v for k, v in slug.items() if k in st),
-                                   ("status_other", "lightgrey", "Other"))
+        fname, color, label = next(
+            (v for k, v in slug.items() if k in st),
+            ("status_other", "lightgrey", "Other"),
+        )
         if fname in written:  # multiple statuses mapping to one slug
             fname = f"{fname}_{abs(hash(st)) % 1000}"
         written.add(fname)
         with open(os.path.join(badge_dir, f"{fname}.json"), "w") as fh:
-            json.dump({"schemaVersion": 1, "label": label, "message": str(n), "color": color}, fh)
+            json.dump(
+                {"schemaVersion": 1, "label": label, "message": str(n), "color": color},
+                fh,
+            )
     print(f"{len(rows)} plans, {len(changes)} changes, {len(slim)} in 77/78 track")
 
 

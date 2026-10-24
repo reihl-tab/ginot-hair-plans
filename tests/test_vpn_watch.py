@@ -5,12 +5,14 @@ import pathlib
 import pytest
 
 spec = importlib.util.spec_from_file_location(
-    "vpn_watch", pathlib.Path(__file__).parents[1] / "scripts/vpn/vpn_watch.py")
+    "vpn_watch", pathlib.Path(__file__).parents[1] / "scripts/vpn/vpn_watch.py"
+)
 vw = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vw)
 
 l2tp_spec = importlib.util.spec_from_file_location(
-    "l2tp_spi_t", pathlib.Path(__file__).parents[1] / "scripts/vpn/l2tp.py")
+    "l2tp_spi_t", pathlib.Path(__file__).parents[1] / "scripts/vpn/l2tp.py"
+)
 l2tp = importlib.util.module_from_spec(l2tp_spec)
 l2tp_spec.loader.exec_module(l2tp)
 
@@ -24,12 +26,24 @@ ESP_O = "c7654321"
 def test_mask_removes_addresses_and_ids():
     s = "sending to 203.0.113.7[500] host vpn.example.com id 'alice' psk=abc123 SPIs 1a2b3c4d_i fe80::1 aa:bb:cc:dd:ee:ff"
     out = vw.mask(s)
-    for leak in ("203.0.113.7", "vpn.example.com", "alice", "abc123", "1a2b3c4d", "fe80::1", "aa:bb:cc"):
+    for leak in (
+        "203.0.113.7",
+        "vpn.example.com",
+        "alice",
+        "abc123",
+        "1a2b3c4d",
+        "fe80::1",
+        "aa:bb:cc",
+    ):
         assert leak not in out
 
 
 def test_event_filter_keeps_rekey_and_dpd_only():
-    lines = ["15[IKE] sending DPD request to 1.2.3.4", "00[LIB] loaded plugins: aes", "09[CHD] rekeying CHILD_SA"]
+    lines = [
+        "15[IKE] sending DPD request to 1.2.3.4",
+        "00[LIB] loaded plugins: aes",
+        "09[CHD] rekeying CHILD_SA",
+    ]
     out = vw.filter_events(lines)
     assert len(out) == 2 and all("1.2.3.4" not in x for x in out)
 
@@ -47,7 +61,10 @@ def test_mask_redacts_ike_responder_spi_issue_120():
     line = f"mavat-l2tp[1]: IKEv1 SPIs: {IKE_I}_i* {IKE_R}_r, pre-shared key reauthentication in 2 hours"
     out = vw.mask(line)
     assert IKE_I not in out and IKE_R not in out
-    assert out == "mavat-l2tp[1]: IKEv1 SPIs: <spi>* <spi>, pre-shared key reauthentication in 2 hours"
+    assert (
+        out
+        == "mavat-l2tp[1]: IKEv1 SPIs: <spi>* <spi>, pre-shared key reauthentication in 2 hours"
+    )
 
 
 @pytest.mark.parametrize("spi", [ESP_I, IKE_R, IKE_R.upper()])
@@ -69,9 +86,11 @@ def test_mask_redacts_responder_spi_without_spi_keyword():
 
 
 def test_mask_redacts_bare_spi_after_keyword_and_long_hex_next_to_underscore():
-    for line in (f"received DELETE for ESP CHILD_SA with SPI {ESP_O}",
-                 f"received DELETE for ESP CHILD_SA with SPI 0x{ESP_O}",
-                 f"rekeying, spi={IKE_R}_r"):
+    for line in (
+        f"received DELETE for ESP CHILD_SA with SPI {ESP_O}",
+        f"received DELETE for ESP CHILD_SA with SPI 0x{ESP_O}",
+        f"rekeying, spi={IKE_R}_r",
+    ):
         assert ESP_O not in vw.mask(line) and IKE_R not in vw.mask(line)
     assert vw.mask(f"cookie {IKE_R}_x") == "cookie <hex>_x"
 
@@ -82,8 +101,12 @@ def test_mask_keeps_non_spi_words():
 
 
 def test_event_and_status_filters_redact_responder_spi():
-    events = vw.filter_events([f"12[IKE] deleting IKE_SA mavat-l2tp[1] SPIs {IKE_I}_i {IKE_R}_r"])
-    status = vw.filter_status(f"mavat-l2tp[1]: ESTABLISHED 3 minutes ago, IKEv1 SPIs: {IKE_I}_i* {IKE_R}_r")
+    events = vw.filter_events(
+        [f"12[IKE] deleting IKE_SA mavat-l2tp[1] SPIs {IKE_I}_i {IKE_R}_r"]
+    )
+    status = vw.filter_status(
+        f"mavat-l2tp[1]: ESTABLISHED 3 minutes ago, IKEv1 SPIs: {IKE_I}_i* {IKE_R}_r"
+    )
     for out in (events, status):
         assert out and IKE_I not in out[0] and IKE_R not in out[0]
 
@@ -91,9 +114,11 @@ def test_event_and_status_filters_redact_responder_spi():
 def test_l2tp_negotiation_summary_never_carries_spis():
     # The charon summarizer in l2tp.py (checked for #120) emits fixed
     # categories only, so SPIs in raw daemon text cannot reach the log.
-    text = (f"12[IKE] IKE_SA mavat-l2tp[1] established, SPIs {IKE_I}_i {IKE_R}_r\n"
-            f"13[IKE] CHILD_SA mavat-l2tp{{1}} established with SPIs {ESP_I}_i {ESP_O}_o\n"
-            f"generating QUICK_MODE request 1 SPI {ESP_O}\nparsed QUICK_MODE response 1")
+    text = (
+        f"12[IKE] IKE_SA mavat-l2tp[1] established, SPIs {IKE_I}_i {IKE_R}_r\n"
+        f"13[IKE] CHILD_SA mavat-l2tp{{1}} established with SPIs {ESP_I}_i {ESP_O}_o\n"
+        f"generating QUICK_MODE request 1 SPI {ESP_O}\nparsed QUICK_MODE response 1"
+    )
     summary = json.dumps(l2tp.summarize_negotiation(text))
     for spi in (IKE_I, IKE_R, ESP_I, ESP_O):
         assert spi not in summary

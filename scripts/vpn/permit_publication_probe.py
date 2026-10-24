@@ -12,6 +12,7 @@ personal-data fields stripped (baaleiInyanList, achraTikFullName).
 Exit codes: 0 = all calls served JSON; 2 = anti-bot challenge/throttle
 (stop, no workaround); 1 = anything else.
 """
+
 import json, subprocess, sys, time
 
 IFACE = "ppp43"
@@ -30,8 +31,15 @@ PROCS = [
     ("address_242700455", 242700455, {"systemId": SYS, "tikNum": TIK}),
 ]
 STRIP_KEYS = {"baaleiInyanList", "achraTikFullName"}
-CHALLENGE_MARKERS = (b"incapsula", b"recaptcha", b"captcha", b"_challenge",
-                     b"px-captcha", b"perimeterx", b"request blocked")
+CHALLENGE_MARKERS = (
+    b"incapsula",
+    b"recaptcha",
+    b"captcha",
+    b"_challenge",
+    b"px-captcha",
+    b"perimeterx",
+    b"request blocked",
+)
 MAX_ROW_CHARS = 6000
 
 
@@ -43,19 +51,37 @@ def sanitize(rows):
             continue
         clean = {k: v for k, v in row.items() if k not in STRIP_KEYS}
         s = json.dumps(clean, ensure_ascii=False, default=str)
-        out.append(json.loads(s[:MAX_ROW_CHARS]) if len(s) <= MAX_ROW_CHARS
-                   else {"_truncated": s[:MAX_ROW_CHARS]})
+        out.append(
+            json.loads(s[:MAX_ROW_CHARS])
+            if len(s) <= MAX_ROW_CHARS
+            else {"_truncated": s[:MAX_ROW_CHARS]}
+        )
     return out
 
 
 def call(tag, proc, params):
     payload = json.dumps({"Cnn": "cnnGisYk", "ProcName": proc, "Parameters": params})
-    cmd = ["curl", "-s", "-o", "/tmp/permit_pub_body", "-w", "%{http_code}\t%{content_type}\t%{size_download}",
-           "-m", "45", "--interface", IFACE,
-           "-H", "Referer: https://ykpubdata.jerusalem.muni.il/",
-           "-H", "Content-Type: application/json",
-           "-A", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-           "--data", payload, URL]
+    cmd = [
+        "curl",
+        "-s",
+        "-o",
+        "/tmp/permit_pub_body",
+        "-w",
+        "%{http_code}\t%{content_type}\t%{size_download}",
+        "-m",
+        "45",
+        "--interface",
+        IFACE,
+        "-H",
+        "Referer: https://ykpubdata.jerusalem.muni.il/",
+        "-H",
+        "Content-Type: application/json",
+        "-A",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+        "--data",
+        payload,
+        URL,
+    ]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     parts = out.stdout.split("\t")
     code, ctype, size = (parts + ["", "", "0"])[:3]
@@ -73,9 +99,19 @@ def call(tag, proc, params):
         except Exception:
             is_json = False
     n = len(rows) if isinstance(rows, list) else (1 if isinstance(rows, dict) else 0)
-    print(json.dumps({"call": tag, "result": "served" if not denied else "access_denied",
-                      "http": code, "bytes": int(size or 0), "row_count": n,
-                      "rows": sanitize(rows) if is_json else None}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "call": tag,
+                "result": "served" if not denied else "access_denied",
+                "http": code,
+                "bytes": int(size or 0),
+                "row_count": n,
+                "rows": sanitize(rows) if is_json else None,
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0 if (not denied and is_json) else 1
 
 

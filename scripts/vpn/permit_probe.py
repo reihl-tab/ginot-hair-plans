@@ -17,35 +17,69 @@ fields plus result count and field NAMES (no personal data, no bodies).
 Exit codes: 0 = API served JSON; 2 = anti-bot challenge/throttle (stop,
 no workaround); 1 = anything else (access denied, error, non-JSON).
 """
+
 import json, subprocess, sys
 
 IFACE = "ppp43"
 URL = "https://jerbasicserviceapi.jerusalem.muni.il/api/Db/ExecuteGetJSON"
-PAYLOAD = json.dumps({
-    "Cnn": "cnnGisYk",
-    "ProcName": 242700437,
-    "Parameters": {"misparTik": None, "gush": 30025, "helka": 126,
-                   "rehovCode": None, "mispBait": None, "mezahe": None,
-                   "migrash": None, "systemId": "26400046"},
-})
-CHALLENGE_MARKERS = (b"incapsula", b"recaptcha", b"captcha", b"_challenge",
-                     b"px-captcha", b"perimeterx", b"request blocked")
+PAYLOAD = json.dumps(
+    {
+        "Cnn": "cnnGisYk",
+        "ProcName": 242700437,
+        "Parameters": {
+            "misparTik": None,
+            "gush": 30025,
+            "helka": 126,
+            "rehovCode": None,
+            "mispBait": None,
+            "mezahe": None,
+            "migrash": None,
+            "systemId": "26400046",
+        },
+    }
+)
+CHALLENGE_MARKERS = (
+    b"incapsula",
+    b"recaptcha",
+    b"captcha",
+    b"_challenge",
+    b"px-captcha",
+    b"perimeterx",
+    b"request blocked",
+)
 
 
-DETAILS_PAYLOAD = json.dumps({
-    "Cnn": "cnnGisYk",
-    "ProcName": 242700447,
-    "Parameters": {"tikNum": "1993/0664.03", "systemCode": "26400046"},
-})
+DETAILS_PAYLOAD = json.dumps(
+    {
+        "Cnn": "cnnGisYk",
+        "ProcName": 242700447,
+        "Parameters": {"tikNum": "1993/0664.03", "systemCode": "26400046"},
+    }
+)
 
 
 def call(payload, tag):
-    cmd = ["curl", "-s", "-o", "/tmp/permit_probe_body", "-w", "%{http_code}\t%{content_type}\t%{size_download}",
-           "-m", "45", "--interface", IFACE,
-           "-H", "Referer: https://ykpubdata.jerusalem.muni.il/",
-           "-H", "Content-Type: application/json",
-           "-A", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-           "--data", payload, URL]
+    cmd = [
+        "curl",
+        "-s",
+        "-o",
+        "/tmp/permit_probe_body",
+        "-w",
+        "%{http_code}\t%{content_type}\t%{size_download}",
+        "-m",
+        "45",
+        "--interface",
+        IFACE,
+        "-H",
+        "Referer: https://ykpubdata.jerusalem.muni.il/",
+        "-H",
+        "Content-Type: application/json",
+        "-A",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+        "--data",
+        payload,
+        URL,
+    ]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     parts = out.stdout.split("\t")
     code, ctype, size = (parts + ["", "", "0"])[:3]
@@ -67,9 +101,20 @@ def call(payload, tag):
                 keys = sorted(data.keys())
         except Exception:
             pass
-    print(json.dumps({"call": tag, "result": "served" if not denied else "access_denied",
-                      "http": code, "bytes": int(size or 0), "json_like": bool(is_json),
-                      "row_count": rows, "field_names": keys}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "call": tag,
+                "result": "served" if not denied else "access_denied",
+                "http": code,
+                "bytes": int(size or 0),
+                "json_like": bool(is_json),
+                "row_count": rows,
+                "field_names": keys,
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0 if (not denied and is_json) else 1
 
 
@@ -77,6 +122,7 @@ def main():
     rc = call(PAYLOAD, "search_242700437")
     if rc == 0:
         import time
+
         time.sleep(5)
         rc = call(DETAILS_PAYLOAD, "details_242700447")
     return rc

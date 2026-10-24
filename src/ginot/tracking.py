@@ -7,6 +7,7 @@ computed when a plan in an undecided state (new/reviewed) has a derived
 objection deadline within URGENT_WITHIN_DAYS. Nothing is ever auto-filed;
 this model is bookkeeping for a human reviewer only. Its states and notes are NEVER written to public artifacts (refresh.py strips them; only the machine-derived advisory urgency flag is published).
 """
+
 import datetime
 import json
 import os
@@ -39,7 +40,9 @@ def _days_to(date_iso: str, today: datetime.date) -> int | None:
         return None
 
 
-def merge(rows: list[dict], states: dict, today: datetime.date | None = None) -> tuple[list[dict], dict]:
+def merge(
+    rows: list[dict], states: dict, today: datetime.date | None = None
+) -> tuple[list[dict], dict]:
     """Attach tracking fields to rows; add defaults for plans never seen.
     Returns (rows, states) - states may have gained defaults (caller saves)."""
     today = today or today_il()
@@ -51,9 +54,14 @@ def merge(rows: list[dict], states: dict, today: datetime.date | None = None) ->
             st = {"state": "new", "updated": today.isoformat(), "note": ""}
             states[num] = st
             changed = True
-        days = _days_to(r.get("objection_deadline_derived_60d_from_publication", ""), today)
-        advisory_urgent = (st["state"] in UNDECIDED and days is not None
-                           and 0 <= days <= URGENT_WITHIN_DAYS)
+        days = _days_to(
+            r.get("objection_deadline_derived_60d_from_publication", ""), today
+        )
+        advisory_urgent = (
+            st["state"] in UNDECIDED
+            and days is not None
+            and 0 <= days <= URGENT_WITHIN_DAYS
+        )
         r["tracking_state"] = "urgent" if advisory_urgent else st["state"]
         r["tracking_urgent_advisory"] = advisory_urgent
         r["tracking_note"] = st.get("note", "")
@@ -63,5 +71,9 @@ def merge(rows: list[dict], states: dict, today: datetime.date | None = None) ->
 
 def set_state(states: dict, pl_number: str, state: str, note: str = "") -> dict:
     assert state in STATES, state
-    states[pl_number] = {"state": state, "updated": today_il().isoformat(), "note": note}
+    states[pl_number] = {
+        "state": state,
+        "updated": today_il().isoformat(),
+        "note": note,
+    }
     return states

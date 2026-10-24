@@ -4,6 +4,7 @@ L2TP/IPsec tunnel (sandbox/direct access is 403-blocked). Read-only GET
 of public pages only; any hard challenge (captcha/login wall) stops the
 run red. Extracts links so the real system behind a service page can be
 found. Uploads results as files for the run artifact."""
+
 import json, os, re, sys, time
 from pathlib import Path
 
@@ -12,11 +13,19 @@ import requests
 OUT = Path("/tmp/muni_probe")
 OUT.mkdir(parents=True, exist_ok=True)
 
-CHALLENGE_MARKERS = ["recaptcha", "captcha", "are you a robot", "cloudflare",
-                     "אימות אנושי", "human verification"]
+CHALLENGE_MARKERS = [
+    "recaptcha",
+    "captcha",
+    "are you a robot",
+    "cloudflare",
+    "אימות אנושי",
+    "human verification",
+]
 
-UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
 
 
 def main():
@@ -46,7 +55,11 @@ def main():
             entry["file"] = fn.name
             entry["bytes"] = len(text)
             links = sorted(set(re.findall(r'href="([^"]+)"', text)))
-            links = [l for l in links if not re.search(r"\.(css|js|png|jpg|svg|ico)(\?|$)", l)]
+            links = [
+                l
+                for l in links
+                if not re.search(r"\.(css|js|png|jpg|svg|ico)(\?|$)", l)
+            ]
             entry["links"] = links[:120]
             # visible text excerpt (tags stripped) for quick reading
             body = re.sub(r"(?s)<(script|style).*?</\1>", " ", text)
@@ -56,10 +69,13 @@ def main():
         except Exception as exc:
             entry["error"] = type(exc).__name__
         report["results"].append(entry)
-        print(f"{url} -> {entry.get('status')} ({entry.get('bytes','?')}b)", flush=True)
+        print(
+            f"{url} -> {entry.get('status')} ({entry.get('bytes', '?')}b)", flush=True
+        )
         time.sleep(2)
     (OUT / "probe_report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     return 0
 
 
