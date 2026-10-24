@@ -5,7 +5,11 @@ of public pages only; any hard challenge (captcha/login wall) stops the
 run red. Extracts links so the real system behind a service page can be
 found. Uploads results as files for the run artifact."""
 
-import json, os, re, sys, time
+import json
+import os
+import re
+import sys
+import time
 from pathlib import Path
 
 import requests

@@ -1,10 +1,10 @@
 """Optional owner-operated L2TP/IPsec PSK transport. No plan-site requests."""
 
 from __future__ import annotations
+
 import ipaddress
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import socket
@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping
+from pathlib import Path
 
 STAGE = "initializing"
 DIAGNOSTICS: dict[str, object] = {}
@@ -72,18 +73,18 @@ def summarize_negotiation(text: str) -> dict[str, object]:
         found.append("child_established")
     found = sorted(set(found))
     if re.search(
-        r"(?:received|parsed)[^\n]*(?:NO_PROPOSAL_CHOSEN|N\(NO_PROP\))", text, re.I
+        r"(?:received|parsed)[^\n]*(?:NO_PROPOSAL_CHOSEN|N\(NO_PROP\))", text, re.IGNORECASE
     ):
         found.append("peer_no_proposal_notification")
     sent = re.findall(
         r"generating (ID_PROT|QUICK_MODE|INFORMATIONAL|TRANSACTION)(?:_V1)?[^\n]*?request",
         text,
-        re.I,
+        re.IGNORECASE,
     )
     parsed = re.findall(
         r"parsed (ID_PROT|QUICK_MODE|INFORMATIONAL|TRANSACTION)(?:_V1)?[^\n]*?(?:request|response)",
         text,
-        re.I,
+        re.IGNORECASE,
     )
     saw_reply = bool(parsed) or "peer_no_proposal_notification" in found
     return {
@@ -126,7 +127,7 @@ def readiness_snapshot(status: str) -> dict[str, bool]:
         "charon_process_alive": alive,
         "control_socket_present": Path("/run/charon.ctl").exists(),
         "connection_loaded": bool(
-            re.search(r"^\s*mavat-l2tp:\s+.*IKEv1", status, re.M)
+            re.search(r"^\s*mavat-l2tp:\s+.*IKEv1", status, re.MULTILINE)
         ),
     }
 
@@ -170,11 +171,11 @@ def established_snapshot(status: str) -> dict[str, bool]:
     """Require both an established IKE SA and installed transport CHILD SA."""
     return {
         "ike_sa_established": bool(
-            re.search(r"^\s*mavat-l2tp\[\d+\]:\s+ESTABLISHED\b", status, re.M)
+            re.search(r"^\s*mavat-l2tp\[\d+\]:\s+ESTABLISHED\b", status, re.MULTILINE)
         ),
         "transport_sa_installed": bool(
             re.search(
-                r"^\s*mavat-l2tp\{\d+\}:\s+INSTALLED,\s+TRANSPORT\b", status, re.M
+                r"^\s*mavat-l2tp\{\d+\}:\s+INSTALLED,\s+TRANSPORT\b", status, re.MULTILINE
             )
         ),
     }

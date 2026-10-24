@@ -21,7 +21,8 @@ Exit codes: 0 = captured >=1 gateway call; 2 = anti-bot challenge/block;
 1 = anything else (nothing captured, error).
 """
 
-import json, sys, time
+import json
+import sys
 
 from playwright.sync_api import sync_playwright
 

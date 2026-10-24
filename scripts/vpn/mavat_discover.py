@@ -11,7 +11,10 @@ Exit codes: 0 = at least one endpoint served usable plan data;
 1 = nothing usable (all shell/error).
 """
 
-import json, subprocess, sys, time
+import json
+import subprocess
+import sys
+import time
 
 IFACE = "ppp43"
 BASE = "https://mavat.iplan.gov.il"

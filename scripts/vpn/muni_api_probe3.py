@@ -1,6 +1,8 @@
 """Probe v3: file-number variants for the archive/taba file procs."""
 
-import json, os, time
+import json
+import os
+import time
 import urllib.request
 
 API = "https://jerbasicserviceapi.jerusalem.muni.il/api/Db/ExecuteGetJSON"

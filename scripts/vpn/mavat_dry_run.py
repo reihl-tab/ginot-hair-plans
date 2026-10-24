@@ -9,9 +9,9 @@ Exit codes: 0 = plan page served; 2 = anti-bot challenge/interstitial (stop);
 """
 
 from __future__ import annotations
+
 import json
 import subprocess
-import sys
 
 URL = "https://mavat.iplan.gov.il/SV4/1/1005303784/310"  # public plan page (Gymnasium 101-1214279)
 DEVICE = "ppp43"

@@ -4,11 +4,11 @@
 import argparse
 import ast
 import html
-import re
 import json
 import os
-from pathlib import Path
+import re
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 
 def safe(text, limit=1200):

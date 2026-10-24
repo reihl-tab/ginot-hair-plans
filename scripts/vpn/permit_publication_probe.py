@@ -13,7 +13,10 @@ Exit codes: 0 = all calls served JSON; 2 = anti-bot challenge/throttle
 (stop, no workaround); 1 = anything else.
 """
 
-import json, subprocess, sys, time
+import json
+import subprocess
+import sys
+import time
 
 IFACE = "ppp43"
 URL = "https://jerbasicserviceapi.jerusalem.muni.il/api/Db/ExecuteGetJSON"
