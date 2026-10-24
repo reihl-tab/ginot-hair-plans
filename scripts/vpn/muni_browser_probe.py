@@ -5,7 +5,10 @@ GET returns only the shell). Public pages only: render, read visible
 text/fields/links, screenshot. Never submits forms, never logs in; any
 hard challenge (captcha / login wall) stops the run red."""
 
-import json, os, sys, time
+import json
+import os
+import sys
+import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright

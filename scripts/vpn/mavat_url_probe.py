@@ -6,7 +6,9 @@ far. Opens the public SV4 plan page (establishes the same session the page
 uses), then in-page fetches a small candidate matrix for ONE doc and reports
 status/ctype/bytes per candidate. Public doc, same session as the page."""
 
-import json, os, sys, time
+import json
+import sys
+import time
 from pathlib import Path
 from urllib.parse import quote
 

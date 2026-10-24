@@ -20,7 +20,7 @@ import json
 import sys
 import time
 
-from permit_feed import SYS, call, publication_dates, PACE_SECONDS
+from permit_feed import PACE_SECONDS, SYS, call, publication_dates
 
 MIRROR = "data/permit_mirror.json"
 DIFF = "data/permit_mirror_diff.json"
@@ -66,9 +66,7 @@ def select_tiks(requests, diff_tiks, include_unenriched, include_late_stages=Fal
     for r in requests:
         if r["status"] in TERMINAL_STATUSES:
             continue
-        if r["tik_num"] in diff_tiks:
-            selected.append(r["tik_num"])
-        elif (
+        if r["tik_num"] in diff_tiks or (
             include_unenriched
             and "publication_start" not in r
             and (include_late_stages or r["status"] not in LATE_STAGE_STATUSES)
