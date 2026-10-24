@@ -2,6 +2,7 @@
 
 Read-only POSTs to the public SPA API, same calls the public site makes.
 Parameterized by env TIK_NUM (bare file number, no 101- prefix)."""
+
 import json, os
 import urllib.request
 
@@ -17,17 +18,27 @@ CALLS = [
     ("proc_471", 242700471, {"tikNum": TIK}),
     ("proc_472", 242700472, {"tikNum": TIK}),
     ("proc_480", 242700480, {"tikNum": TIK}),
-    ("taba_by_num_470", 242700470, {"misparTaba": TIK, "gush": "", "helka": "", "rehovCode": "", "mispBait": ""}),
+    (
+        "taba_by_num_470",
+        242700470,
+        {"misparTaba": TIK, "gush": "", "helka": "", "rehovCode": "", "mispBait": ""},
+    ),
 ]
 
 for label, proc, params in CALLS:
-    body = json.dumps({"ProcName": proc, "Cnn": "cnnGisYk", "Parameters": params}).encode()
-    req = urllib.request.Request(API, data=body, headers={
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-        "Origin": "https://ykpubdata.jerusalem.muni.il",
-        "Referer": "https://ykpubdata.jerusalem.muni.il/",
-    })
+    body = json.dumps(
+        {"ProcName": proc, "Cnn": "cnnGisYk", "Parameters": params}
+    ).encode()
+    req = urllib.request.Request(
+        API,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Origin": "https://ykpubdata.jerusalem.muni.il",
+            "Referer": "https://ykpubdata.jerusalem.muni.il/",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
             raw, status = r.read(), r.status

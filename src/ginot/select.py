@@ -9,6 +9,7 @@ Result with the Oct-2026 export: polygons #37 + #39 + #46
 (Rehavia/Talbiya/Komemiyut/German+Greek Colony + Old Katamon + Gonenim/Givat
 Hordim), ~6.10 km2. Baka, Shaare Hesed and Lev HaIr stay outside.
 """
+
 from pyproj import Transformer
 from shapely.geometry import Point, Polygon
 from shapely.ops import unary_union
@@ -56,7 +57,9 @@ def select_council(polys: list[Polygon]) -> tuple[Polygon, list[int]]:
     while remaining:
         best, best_gain = None, 0
         for i in clean:
-            if i in chosen or not polys[i].intersects(unary_union([polys[j] for j in chosen])):
+            if i in chosen or not polys[i].intersects(
+                unary_union([polys[j] for j in chosen])
+            ):
                 continue
             gain = len(covers(i, req) & remaining)
             if gain > best_gain:
@@ -75,6 +78,12 @@ def select_council(polys: list[Polygon]) -> tuple[Polygon, list[int]]:
 def verify(union: Polygon) -> dict:
     inside = [k for k, v in REQUIRED_LANDMARKS.items() if union.contains(_pt(v))]
     outside = [k for k, v in FORBIDDEN_LANDMARKS.items() if not union.contains(_pt(v))]
-    ok = len(inside) == len(REQUIRED_LANDMARKS) and len(outside) == len(FORBIDDEN_LANDMARKS)
-    return {"ok": ok, "required_inside": inside, "forbidden_outside": outside,
-            "area_km2": round(union.area / 1e6, 3)}
+    ok = len(inside) == len(REQUIRED_LANDMARKS) and len(outside) == len(
+        FORBIDDEN_LANDMARKS
+    )
+    return {
+        "ok": ok,
+        "required_inside": inside,
+        "forbidden_outside": outside,
+        "area_km2": round(union.area / 1e6, 3),
+    }

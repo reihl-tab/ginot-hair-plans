@@ -3,6 +3,7 @@
 Publication of provider geometry needs a separate terms check. This module
 neither publishes files nor changes the scheduled refresh.
 """
+
 import shapely
 from pyproj import Transformer
 from shapely.geometry import Polygon, mapping
@@ -20,15 +21,21 @@ def plan_geometry(rings):
         polygon = Polygon(ring)
         if not polygon.is_valid or polygon.is_empty or polygon.area == 0:
             raise ValueError("invalid planning boundary ring")
-        geometry = polygon if geometry is None else geometry.symmetric_difference(polygon)
+        geometry = (
+            polygon if geometry is None else geometry.symmetric_difference(polygon)
+        )
     if geometry is None or geometry.is_empty:
         return None
     if not geometry.is_valid or geometry.geom_type not in ("Polygon", "MultiPolygon"):
         raise ValueError("invalid planning boundary geometry")
     project = Transformer.from_crs(2039, 4326, always_xy=True).transform
-    point = shapely.transform(geometry.representative_point(), project, interleaved=False)
-    return {"geometry": mapping(shapely.transform(geometry, project, interleaved=False)),
-            "point": [point.x, point.y]}
+    point = shapely.transform(
+        geometry.representative_point(), project, interleaved=False
+    )
+    return {
+        "geometry": mapping(shapely.transform(geometry, project, interleaved=False)),
+        "point": [point.x, point.y],
+    }
 
 
 def feature_collection(features):
@@ -48,11 +55,16 @@ def feature_collection(features):
         if not prepared:
             result["missing_geometry"] += 1
             continue
-        result["features"].append({
-            "type": "Feature", "geometry": prepared["geometry"],
-            "properties": {"pl_number": attrs.get("pl_number"),
-                           "pl_name": attrs.get("pl_name"),
-                           "station_desc": attrs.get("station_desc"),
-                           "representative_point": prepared["point"]},
-        })
+        result["features"].append(
+            {
+                "type": "Feature",
+                "geometry": prepared["geometry"],
+                "properties": {
+                    "pl_number": attrs.get("pl_number"),
+                    "pl_name": attrs.get("pl_name"),
+                    "station_desc": attrs.get("station_desc"),
+                    "representative_point": prepared["point"],
+                },
+            }
+        )
     return result

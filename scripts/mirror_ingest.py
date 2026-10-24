@@ -19,6 +19,7 @@ data; verify at the source before reliance.
 
 Usage: python3 scripts/mirror_ingest.py [--validate-against data/permit_requests.json]
 """
+
 import argparse
 import datetime
 import json
@@ -57,11 +58,13 @@ def parcel_interval(row):
     as an interval, never materialized. Garbage ranges (start > end,
     seen as 216 -> 2) degrade to the two endpoints as points.
     """
+
     def num(v):
         try:
             return int(float(str(v).strip()))
         except (TypeError, ValueError):
             return None
+
     start, end = num(row.get("מחלקה")), num(row.get("עד חלקה"))
     if start is None:
         return set(), None
@@ -92,8 +95,11 @@ def date_only(raw):
 
 def map_record(row, gush, hits):
     """Mirror row -> output record. Personal columns are never read."""
-    street = " ".join(x for x in ((row.get("רחוב") or "").strip(),
-                                  (row.get("מספר בית") or "").strip()) if x and x != "0")
+    street = " ".join(
+        x
+        for x in ((row.get("רחוב") or "").strip(), (row.get("מספר בית") or "").strip())
+        if x and x != "0"
+    )
     neighborhood = (row.get("שכונה") or "").strip()
     return {
         "tik_num": (row.get("מספר תיק") or "").strip(),
@@ -112,14 +118,18 @@ def map_record(row, gush, hits):
 
 def fetch_rows(gushim):
     """Paged latest-view pull filtered to the council gushim."""
-    filters = urllib.parse.quote(json.dumps({"גוש": [str(g) for g in gushim]},
-                                            ensure_ascii=False))
+    filters = urllib.parse.quote(
+        json.dumps({"גוש": [str(g) for g in gushim]}, ensure_ascii=False)
+    )
     rows, offset = [], 0
     while True:
-        url = (f"{ROWS_URL}?latest=true&limit={PAGE}&offset={offset}"
-               f"&include_total=true&filters={filters}")
-        out = subprocess.run(["curl", "-s", "-m", "60", url],
-                             capture_output=True, text=True).stdout
+        url = (
+            f"{ROWS_URL}?latest=true&limit={PAGE}&offset={offset}"
+            f"&include_total=true&filters={filters}"
+        )
+        out = subprocess.run(
+            ["curl", "-s", "-m", "60", url], capture_output=True, text=True
+        ).stdout
         data = json.loads(out)
         if not data.get("success"):
             raise RuntimeError(f"mirror API error: {out[:200]}")
@@ -144,11 +154,13 @@ def diff_records(old_records, new_records):
     new_by_tik = {r["tik_num"]: r for r in new_records}
     new_tiks = sorted(set(new_by_tik) - set(old_by_tik))
     gone_tiks = sorted(set(old_by_tik) - set(new_by_tik))
-    changed = sorted(t for t in set(old_by_tik) & set(new_by_tik)
-                     if (old_by_tik[t].get("status"), old_by_tik[t].get("status_date"))
-                        != (new_by_tik[t].get("status"), new_by_tik[t].get("status_date")))
-    return {"new_tiks": new_tiks, "changed_tiks": changed,
-            "gone_tiks": gone_tiks}
+    changed = sorted(
+        t
+        for t in set(old_by_tik) & set(new_by_tik)
+        if (old_by_tik[t].get("status"), old_by_tik[t].get("status_date"))
+        != (new_by_tik[t].get("status"), new_by_tik[t].get("status_date"))
+    )
+    return {"new_tiks": new_tiks, "changed_tiks": changed, "gone_tiks": gone_tiks}
 
 
 def validate(records, path):
@@ -163,9 +175,12 @@ def validate(records, path):
     print(f"  mirror tiks (council parcels): {len(mirror_tiks)}")
     print(f"  in both: {len(common)}")
     print(f"  direct-only: {sorted(direct_tiks - mirror_tiks)[:20]}")
-    return {"direct": len(direct_tiks), "mirror": len(mirror_tiks),
-            "common": len(common),
-            "direct_only": sorted(direct_tiks - mirror_tiks)}
+    return {
+        "direct": len(direct_tiks),
+        "mirror": len(mirror_tiks),
+        "common": len(common),
+        "direct_only": sorted(direct_tiks - mirror_tiks),
+    }
 
 
 def main():
@@ -178,8 +193,10 @@ def main():
 
     parcels_by_gush = load_parcels(args.parcels)
     gushim = sorted(parcels_by_gush)
-    print(f"{sum(len(v) for v in parcels_by_gush.values())} council parcels "
-          f"in {len(gushim)} gushim")
+    print(
+        f"{sum(len(v) for v in parcels_by_gush.values())} council parcels "
+        f"in {len(gushim)} gushim"
+    )
 
     old_records = []
     try:
@@ -200,12 +217,18 @@ def main():
             records[rec["tik_num"]] = rec
 
     payload = {
-        "generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
-        "source": ("over.org.il (גרסאות לעם) mirror of the Jerusalem "
-                   "municipality ykpubdata licensing viewer"),
+        "generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem"))
+        .date()
+        .isoformat(),  # issue #331: IL not runner UTC
+        "source": (
+            "over.org.il (גרסאות לעם) mirror of the Jerusalem "
+            "municipality ykpubdata licensing viewer"
+        ),
         "mirror_table": TABLE,
-        "label": ("DRAFT - third-party mirror data; completeness not "
-                  "guaranteed, verify at the source before reliance"),
+        "label": (
+            "DRAFT - third-party mirror data; completeness not "
+            "guaranteed, verify at the source before reliance"
+        ),
         "requests": sorted(records.values(), key=lambda r: r["tik_num"]),
     }
     with open(args.out, "w", encoding="utf-8") as fh:
@@ -216,8 +239,10 @@ def main():
     diff.update({"generated": payload["generated"]})
     with open(args.diff_out, "w", encoding="utf-8") as fh:
         json.dump(diff, fh, ensure_ascii=False, indent=1)
-    print(f"diff vs previous ingest: {len(diff['new_tiks'])} new, "
-          f"{len(diff['changed_tiks'])} changed, {len(diff['gone_tiks'])} gone")
+    print(
+        f"diff vs previous ingest: {len(diff['new_tiks'])} new, "
+        f"{len(diff['changed_tiks'])} changed, {len(diff['gone_tiks'])} gone"
+    )
 
     if args.validate_against:
         validate(records, args.validate_against)

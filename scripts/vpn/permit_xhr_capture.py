@@ -20,6 +20,7 @@ sizes/keys only. No response bodies with personal data are stored.
 Exit codes: 0 = captured >=1 gateway call; 2 = anti-bot challenge/block;
 1 = anything else (nothing captured, error).
 """
+
 import json, sys, time
 
 from playwright.sync_api import sync_playwright
@@ -27,12 +28,18 @@ from playwright.sync_api import sync_playwright
 VIEWER = "https://ykpubdata.jerusalem.muni.il"
 # Public details page for the known permit request on gush 30025 helka 126
 # (Alfasi 9, TAMA 38 s.13) - already public in the viewer.
-DETAILS = (VIEWER + "/Rishui/BakashalInfo"
-           "?TikNum=1993/0664.03&SystemCode=26400046")
+DETAILS = VIEWER + "/Rishui/BakashalInfo?TikNum=1993/0664.03&SystemCode=26400046"
 API_MARK = "jerbasicserviceapi.jerusalem.muni.il"
-CHALLENGE_MARKERS = ("incapsula", "recaptcha", "captcha", "_challenge",
-                     "px-captcha", "perimeterx", "request blocked",
-                     "access denied")
+CHALLENGE_MARKERS = (
+    "incapsula",
+    "recaptcha",
+    "captcha",
+    "_challenge",
+    "px-captcha",
+    "perimeterx",
+    "request blocked",
+    "access denied",
+)
 
 captured = []
 challenge = {"hit": False}
@@ -40,8 +47,9 @@ challenge = {"hit": False}
 
 def on_request(req):
     if API_MARK in req.url:
-        captured.append({"method": req.method, "url": req.url,
-                         "post_data": req.post_data})
+        captured.append(
+            {"method": req.method, "url": req.url, "post_data": req.post_data}
+        )
 
 
 def on_response(resp):
@@ -70,8 +78,11 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(
-            user_agent=("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"))
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+            )
+        )
         page = ctx.new_page()
         page.on("request", on_request)
         page.on("response", on_response)
@@ -94,8 +105,14 @@ def main():
                 btn.click(timeout=5000)
                 page.wait_for_timeout(6000)
             except Exception as e:
-                print(json.dumps({"event": "search_form_not_driven",
-                                  "error_kind": type(e).__name__}))
+                print(
+                    json.dumps(
+                        {
+                            "event": "search_form_not_driven",
+                            "error_kind": type(e).__name__,
+                        }
+                    )
+                )
             check_page_for_challenge(page)
 
         # 2. Public details page: capture detail-shaped calls.
@@ -111,14 +128,23 @@ def main():
         json.dump(captured, f, ensure_ascii=False, indent=1)
 
     if challenge["hit"]:
-        print(json.dumps({"result": "anti_bot_challenge",
-                          "captured": len(captured)}))
+        print(json.dumps({"result": "anti_bot_challenge", "captured": len(captured)}))
         return 2
     for c in captured:
-        print(json.dumps({"captured": c["method"] + " " + c["url"],
-                          "post_data": c["post_data"]}, ensure_ascii=False))
-    print(json.dumps({"result": "captured" if captured else "nothing_captured",
-                      "gateway_calls": len(captured)}))
+        print(
+            json.dumps(
+                {"captured": c["method"] + " " + c["url"], "post_data": c["post_data"]},
+                ensure_ascii=False,
+            )
+        )
+    print(
+        json.dumps(
+            {
+                "result": "captured" if captured else "nothing_captured",
+                "gateway_calls": len(captured),
+            }
+        )
+    )
     return 0 if captured else 1
 
 

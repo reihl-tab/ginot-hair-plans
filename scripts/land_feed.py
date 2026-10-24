@@ -10,6 +10,7 @@ public metadata only (status, status date, plan id).
 
 Usage: python3 scripts/land_feed.py [--data-json docs/data.json]
 """
+
 import argparse
 import datetime
 import json
@@ -26,14 +27,35 @@ MAX_CONSECUTIVE_FAILURES = 5
 
 
 def query_plan(plan_number):
-    body = json.dumps({
-        "planNumber": plan_number, "city": "", "gush": "", "chelka": "",
-        "statuses": "", "planningCommitte": "", "planTypes": "",
-        "planTypesUsed": "", "fromStatusDate": "", "toStatusDate": "",
-    })
-    cmd = ["curl", "-s", "-m", "45", "-A", UA,
-           "-H", "Content-Type: application/json",
-           "-X", "POST", "--data", body, URL]
+    body = json.dumps(
+        {
+            "planNumber": plan_number,
+            "city": "",
+            "gush": "",
+            "chelka": "",
+            "statuses": "",
+            "planningCommitte": "",
+            "planTypes": "",
+            "planTypesUsed": "",
+            "fromStatusDate": "",
+            "toStatusDate": "",
+        }
+    )
+    cmd = [
+        "curl",
+        "-s",
+        "-m",
+        "45",
+        "-A",
+        UA,
+        "-H",
+        "Content-Type: application/json",
+        "-X",
+        "POST",
+        "--data",
+        body,
+        URL,
+    ]
     out = subprocess.run(cmd, capture_output=True, text=True, timeout=60).stdout
     try:
         data = json.loads(out)
@@ -92,7 +114,9 @@ def main():
             hit = None
         if hit is None:
             failures += 1
-            print(f"[{i+1}/{len(numbers)}] {num}: request failed ({failures} consecutive)")
+            print(
+                f"[{i + 1}/{len(numbers)}] {num}: request failed ({failures} consecutive)"
+            )
             if failures >= MAX_CONSECUTIVE_FAILURES:
                 print("aborting: repeated request failures")
                 return 1
@@ -109,11 +133,15 @@ def main():
             "is_deposit_publication": any(m in status for m in DEPOSIT_MARKERS),
         }
         if (i + 1) % 25 == 0:
-            print(f"[{i+1}/{len(numbers)}] ok, {len(result)} with land data")
+            print(f"[{i + 1}/{len(numbers)}] ok, {len(result)} with land data")
 
-    payload = {"generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
-               "source": "Israel Land Authority TabaSearch public API",
-               "plans": result}
+    payload = {
+        "generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem"))
+        .date()
+        .isoformat(),  # issue #331: IL not runner UTC
+        "source": "Israel Land Authority TabaSearch public API",
+        "plans": result,
+    }
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
     print(f"wrote {args.out}: {len(result)} plans with land status")

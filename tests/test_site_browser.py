@@ -8,6 +8,7 @@ permit deep links, footer/About links and expected row counts.
 Skipped when Playwright or its browser is not installed (the CI
 "site-browser" job installs both).
 """
+
 import datetime
 import functools
 import http.server
@@ -32,13 +33,23 @@ MS_DAY = 86400 * 1000
 
 
 def ms(d):
-    return int(datetime.datetime(d.year, d.month, d.day, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+    return int(
+        datetime.datetime(
+            d.year, d.month, d.day, tzinfo=datetime.timezone.utc
+        ).timestamp()
+        * 1000
+    )
 
 
 def feat(num, status, advertise=None, name=None):
-    a = {"pl_number": num, "pl_name": name or f"תכנית {num}", "station_desc": status,
-         "receiving_date": ms(datetime.date(2026, 1, 15)), "pl_area_dunam": 2.5,
-         "pl_url": f"https://mavat.iplan.gov.il/{num}"}
+    a = {
+        "pl_number": num,
+        "pl_name": name or f"תכנית {num}",
+        "station_desc": status,
+        "receiving_date": ms(datetime.date(2026, 1, 15)),
+        "pl_area_dunam": 2.5,
+        "pl_url": f"https://mavat.iplan.gov.il/{num}",
+    }
     if advertise:
         a["pl_date_advertise"] = ms(advertise)
     return {"attributes": a, "geometry": None}
@@ -47,22 +58,51 @@ def feat(num, status, advertise=None, name=None):
 # 22 deposit plans (open objection windows, deadlines spread over the next
 # 22 days), 4 under review, 3 approved (hidden by default) = 29 plans,
 # 26 of them active.
-DEPOSIT = [feat(f"200-{i}", "הפקדה להתנגדויות", TODAY + datetime.timedelta(days=i - 50))
-           for i in range(1, 23)]
+DEPOSIT = [
+    feat(f"200-{i}", "הפקדה להתנגדויות", TODAY + datetime.timedelta(days=i - 50))
+    for i in range(1, 23)
+]
 REVIEW = [feat(f"300-{i}", "בדיקה תכנונית") for i in range(1, 5)]
 APPROVED = [feat(f"400-{i}", "אישור") for i in range(1, 4)]
 FEATURES = DEPOSIT + REVIEW + APPROVED
 
 PERMITS = [
-    {"tik_num": "2020/0001.01", "status": "בבדיקה", "mahut": "תוספת בניה", "sugbakasha": "היתר",
-     "gush": 30000, "helka": 12, "address": "אלפסי 9", "status_date": "2026-09-01",
-     "publication_start": "2026-09-05", "publication_end_planned": "2026-09-19"},
-    {"tik_num": "2020/0002.01", "status": "בבדיקה", "mahut": "שימוש חורג", "sugbakasha": "היתר",
-     "gush": 30000, "helka": 13, "address": "בן יהודה 1", "status_date": "2026-09-02",
-     "publication_start": "", "publication_end_planned": ""},
-    {"tik_num": "2020/0003.01", "status": "הבקשה נסגרה", "mahut": "סגורה", "sugbakasha": "היתר",
-     "gush": 30000, "helka": 14, "address": "הרצל 5", "status_date": "2026-08-01",
-     "publication_start": "", "publication_end_planned": ""},
+    {
+        "tik_num": "2020/0001.01",
+        "status": "בבדיקה",
+        "mahut": "תוספת בניה",
+        "sugbakasha": "היתר",
+        "gush": 30000,
+        "helka": 12,
+        "address": "אלפסי 9",
+        "status_date": "2026-09-01",
+        "publication_start": "2026-09-05",
+        "publication_end_planned": "2026-09-19",
+    },
+    {
+        "tik_num": "2020/0002.01",
+        "status": "בבדיקה",
+        "mahut": "שימוש חורג",
+        "sugbakasha": "היתר",
+        "gush": 30000,
+        "helka": 13,
+        "address": "בן יהודה 1",
+        "status_date": "2026-09-02",
+        "publication_start": "",
+        "publication_end_planned": "",
+    },
+    {
+        "tik_num": "2020/0003.01",
+        "status": "הבקשה נסגרה",
+        "mahut": "סגורה",
+        "sugbakasha": "היתר",
+        "gush": 30000,
+        "helka": 14,
+        "address": "הרצל 5",
+        "status_date": "2026-08-01",
+        "publication_start": "",
+        "publication_end_planned": "",
+    },
 ]
 
 
@@ -71,16 +111,39 @@ def site(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("site")
     cwd = pathlib.Path.cwd()
     (tmp / "data").mkdir()
-    shutil.copy(ROOT / "data" / "council_ginot_hair.geojson", tmp / "data" / "council.geojson")
+    shutil.copy(
+        ROOT / "data" / "council_ginot_hair.geojson", tmp / "data" / "council.geojson"
+    )
     (tmp / "data" / "permit_requests.json").write_text(
-        json.dumps({"requests": PERMITS}, ensure_ascii=False), encoding="utf-8")
+        json.dumps({"requests": PERMITS}, ensure_ascii=False), encoding="utf-8"
+    )
     shutil.copytree(ROOT / "docs", tmp / "docs", ignore=shutil.ignore_patterns("badge"))
     mp = pytest.MonkeyPatch()
     mp.chdir(tmp)
-    mp.setattr(refresh.iplan, "query_plans",
-               lambda council, service="x", **kw: FEATURES if service == "xplan_without_77_78" else [])
-    mp.setattr(sys, "argv", ["refresh.py", "--council", "data/council.geojson", "--out", "out",
-                             "--site", "docs", "--snapshots", "snapshots", "--status", "data/plan_status.json"])
+    mp.setattr(
+        refresh.iplan,
+        "query_plans",
+        lambda council, service="x", **kw: (
+            FEATURES if service == "xplan_without_77_78" else []
+        ),
+    )
+    mp.setattr(
+        sys,
+        "argv",
+        [
+            "refresh.py",
+            "--council",
+            "data/council.geojson",
+            "--out",
+            "out",
+            "--site",
+            "docs",
+            "--snapshots",
+            "snapshots",
+            "--status",
+            "data/plan_status.json",
+        ],
+    )
     refresh.main()
     mp.undo()
     assert pathlib.Path.cwd() == cwd
@@ -119,7 +182,9 @@ def page(browser, served):
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(served + "/index.html")
     pg.wait_for_function("window.__rowsLoaded === true || window.__rowsFailed === true")
-    pg.wait_for_function("window.__permitsLoaded === true || window.__permitsFailed === true")
+    pg.wait_for_function(
+        "window.__permitsLoaded === true || window.__permitsFailed === true"
+    )
     assert pg.evaluate("window.__rowsLoaded") is True, "rows.html failed to load"
     assert pg.evaluate("window.__permitsLoaded") is True, "permits.html failed to load"
     yield pg
@@ -132,13 +197,17 @@ def visible_plans(pg):
 
 
 def plan_ids(pg):
-    return pg.locator("#plans tbody tr:not(.filtered-out) td:first-child").all_inner_texts()
+    return pg.locator(
+        "#plans tbody tr:not(.filtered-out) td:first-child"
+    ).all_inner_texts()
 
 
 def test_default_view_is_active_only_and_capped_at_20(page):
     assert page.locator("#plans tbody tr").count() == 29
     assert visible_plans(page) == 20
-    assert page.locator("#fcount").inner_text() == "מציג 20 מתוך 26"  # 3 approved hidden
+    assert (
+        page.locator("#fcount").inner_text() == "מציג 20 מתוך 26"
+    )  # 3 approved hidden
     assert not page.locator("#fappr").is_checked()
     assert not any(i.startswith("400-") for i in plan_ids(page))
 
@@ -210,7 +279,9 @@ def test_column_sort_toggles_direction(page):
     assert asc == sorted(asc) and "sorted-asc" in btn.get_attribute("class")
     btn.click()
     desc = plan_ids(page)
-    assert desc == sorted(desc, reverse=True) and "sorted-desc" in btn.get_attribute("class")
+    assert desc == sorted(desc, reverse=True) and "sorted-desc" in btn.get_attribute(
+        "class"
+    )
 
 
 def test_dates_render_dd_mm_yy(page):
@@ -220,11 +291,19 @@ def test_dates_render_dd_mm_yy(page):
         iso = cells.nth(i).get_attribute("data-iso")
         txt = cells.nth(i).inner_text()
         assert txt == f"{iso[8:10]}.{iso[5:7]}.{iso[2:4]}"
-    assert page.locator("#plans tbody tr", has_text="200-1").first.locator("td").nth(3).inner_text() == "15.01.26"
+    assert (
+        page.locator("#plans tbody tr", has_text="200-1")
+        .first.locator("td")
+        .nth(3)
+        .inner_text()
+        == "15.01.26"
+    )
 
 
 def test_plan_numbers_link_to_mavat(page):
-    href = page.locator("#plans tbody tr:not(.filtered-out) td:first-child a").first.get_attribute("href")
+    href = page.locator(
+        "#plans tbody tr:not(.filtered-out) td:first-child a"
+    ).first.get_attribute("href")
     assert href.startswith("https://mavat.iplan.gov.il/")
 
 
@@ -248,21 +327,30 @@ def test_permit_search_and_status_chip(page):
 def test_permit_publication_date_filter(page):
     page.fill("#pffrom", "2026-09-01")
     assert page.locator("#permits-table tbody tr:not(.filtered-out)").count() == 1
-    assert page.locator("#permits-table tbody tr:not(.filtered-out)").inner_text().count("2020/0001.01") == 1
+    assert (
+        page.locator("#permits-table tbody tr:not(.filtered-out)")
+        .inner_text()
+        .count("2020/0001.01")
+        == 1
+    )
 
 
 def test_permit_deep_links_point_to_municipality_file(page):
     links = page.locator("#permits-table tbody tr td:first-child a")
     assert links.count() == 3
     href = links.first.get_attribute("href")
-    assert href == ("https://ykpubdata.jerusalem.muni.il/#/Details?TikNum=2020%2F0001.01"
-                    "&SystemCode=26400046&Page=BakashalInfo")
+    assert href == (
+        "https://ykpubdata.jerusalem.muni.il/#/Details?TikNum=2020%2F0001.01"
+        "&SystemCode=26400046&Page=BakashalInfo"
+    )
     assert links.first.get_attribute("target") == "_blank"
     assert "noopener" in links.first.get_attribute("rel")
 
 
 def test_footer_links(page, site):
-    hrefs = page.locator("footer a").evaluate_all("els => els.map(e => e.getAttribute('href'))")
+    hrefs = page.locator("footer a").evaluate_all(
+        "els => els.map(e => e.getAttribute('href'))"
+    )
     assert "about.html" in hrefs
     assert "https://github.com/reihlinstinct/ginot-hair-plans" in hrefs
     assert any(h.endswith("CONTRIBUTING.md") for h in hrefs)
@@ -273,7 +361,12 @@ def test_footer_links(page, site):
 
 def test_page_has_draft_notice_and_feed_link(page):
     assert "DRAFT" in page.locator("#permits h2").inner_text()
-    assert page.locator("link[rel='alternate'][type='application/atom+xml']").get_attribute("href") == "feed.xml"
+    assert (
+        page.locator(
+            "link[rel='alternate'][type='application/atom+xml']"
+        ).get_attribute("href")
+        == "feed.xml"
+    )
 
 
 def test_footer_with_about_is_at_the_bottom_of_the_page(page):
@@ -282,7 +375,10 @@ def test_footer_with_about_is_at_the_bottom_of_the_page(page):
     # footer is the last content element before the script, below every section
     last = page.evaluate("document.body.lastElementChild.tagName")
     assert last == "SCRIPT"
-    assert page.evaluate("document.querySelector('footer').nextElementSibling.tagName") == "SCRIPT"
+    assert (
+        page.evaluate("document.querySelector('footer').nextElementSibling.tagName")
+        == "SCRIPT"
+    )
     fy = footer.bounding_box()["y"]
     for sel in ("#plans", "#permits", "#stats"):
         box = page.locator(sel).bounding_box()
@@ -304,13 +400,21 @@ def test_statistics_collapsed_by_default_and_expandable(page):
 
 @pytest.mark.parametrize("w,h", [(390, 844), (360, 800)])
 def test_mobile_no_horizontal_scroll_and_cards(browser, site, w, h):
-    ctx = browser.new_context(viewport={"width": w, "height": h}, is_mobile=True, has_touch=True)
+    ctx = browser.new_context(
+        viewport={"width": w, "height": h}, is_mobile=True, has_touch=True
+    )
     pg = ctx.new_page()
     pg.goto((site / "index.html").as_uri())
     assert pg.evaluate("document.documentElement.scrollWidth") <= w + 1
-    assert pg.evaluate("getComputedStyle(document.querySelector('#plans tbody tr')).display") == "block"
+    assert (
+        pg.evaluate(
+            "getComputedStyle(document.querySelector('#plans tbody tr')).display"
+        )
+        == "block"
+    )
     label = pg.evaluate(
-        "getComputedStyle(document.querySelector('#plans tbody tr td:nth-child(4)'), '::before').content")
+        "getComputedStyle(document.querySelector('#plans tbody tr td:nth-child(4)'), '::before').content"
+    )
     assert "קליטה" in label
     # the sort controls stay usable as chips
     assert pg.locator("#plans thead th button").first.is_visible()
@@ -318,14 +422,23 @@ def test_mobile_no_horizontal_scroll_and_cards(browser, site, w, h):
 
 
 def test_mobile_tap_targets_and_font_size(browser, served):
-    ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    ctx = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
     pg = ctx.new_page()
     pg.goto(served + "/index.html")
     pg.wait_for_function("window.__rowsLoaded === true || window.__rowsFailed === true")
     for sel in ("#fq", "#fstatus", "#freset", "#more"):
         box = pg.locator(sel).bounding_box()
         assert box["height"] >= 43, sel
-        assert float(pg.evaluate(f"parseFloat(getComputedStyle(document.querySelector('{sel}')).fontSize)")) >= 16
+        assert (
+            float(
+                pg.evaluate(
+                    f"parseFloat(getComputedStyle(document.querySelector('{sel}')).fontSize)"
+                )
+            )
+            >= 16
+        )
     ctx.close()
 
 
@@ -333,16 +446,21 @@ def test_desktop_keeps_the_table_layout(browser, site):
     ctx = browser.new_context(viewport={"width": 1200, "height": 800})
     pg = ctx.new_page()
     pg.goto((site / "index.html").as_uri())
-    assert pg.evaluate("getComputedStyle(document.querySelector('#plans')).display") == "table"
+    assert (
+        pg.evaluate("getComputedStyle(document.querySelector('#plans')).display")
+        == "table"
+    )
     ctx.close()
 
 
 def test_urgent_row_matches_deadline_window(browser, served, site):
     import re
+
     html_src = (site / "rows.html").read_text(encoding="utf-8")  # full row set (#164)
     deadlines = re.findall(r"data-obj='([0-9]{4}-[0-9]{2}-[0-9]{2})'", html_src)
-    expected = sorted(d for d in deadlines
-                      if 0 <= (datetime.date.fromisoformat(d) - TODAY).days <= 30)
+    expected = sorted(
+        d for d in deadlines if 0 <= (datetime.date.fromisoformat(d) - TODAY).days <= 30
+    )
     assert expected, "fixture must include plans inside the urgent window"
     pg = browser.new_page()
     pg.goto(served + "/index.html?today=" + TODAY.isoformat())
@@ -356,15 +474,14 @@ def test_urgent_row_matches_deadline_window(browser, served, site):
 
 def test_urgent_row_empties_once_window_passes(browser, site):
     pg = browser.new_page()
-    pg.goto((site / "index.html").as_uri() + "?today=" +
-            (TODAY + datetime.timedelta(days=40)).isoformat())
+    pg.goto(
+        (site / "index.html").as_uri()
+        + "?today="
+        + (TODAY + datetime.timedelta(days=40)).isoformat()
+    )
     items = pg.locator("#urgent-list li").all_inner_texts()
     pg.close()
     assert items == ["אין"]
-
-
-
-
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -375,36 +492,38 @@ def test_statistics_have_visible_tracks_and_fills(page, width):
     fill = page.locator("#stats .bf").first.bounding_box()
     assert track["width"] >= 30 and track["height"] >= 14
     assert fill["width"] > 0 and fill["height"] >= 14
-    assert page.locator("#stats .bf").first.evaluate(
-        "e => getComputedStyle(e).backgroundColor") != "rgba(0, 0, 0, 0)"
+    assert (
+        page.locator("#stats .bf").first.evaluate(
+            "e => getComputedStyle(e).backgroundColor"
+        )
+        != "rgba(0, 0, 0, 0)"
+    )
     assert page.locator("#stats .bv").first.inner_text().isdigit()
 
 
 def test_permit_closed_chip_is_explicit_and_does_not_change_plan_filter(page):
     assert page.locator('#permits-table tbody tr[data-active="0"]:visible').count() == 0
     before = plan_ids(page)
-    page.locator('#permits .legend .chip', has_text='הבקשה נסגרה').click()
-    assert page.locator('#pfstatus').input_value() == 'הבקשה נסגרה'
-    assert page.locator('#permits-table tbody tr:visible').count() == 1
-    assert page.locator('#fstatus').input_value() == ''
+    page.locator("#permits .legend .chip", has_text="הבקשה נסגרה").click()
+    assert page.locator("#pfstatus").input_value() == "הבקשה נסגרה"
+    assert page.locator("#permits-table tbody tr:visible").count() == 1
+    assert page.locator("#fstatus").input_value() == ""
     assert plan_ids(page) == before
-    page.click('#pfreset')
+    page.click("#pfreset")
     assert page.locator('#permits-table tbody tr[data-active="0"]:visible').count() == 0
 
 
 def test_committed_site_includes_permit_filter_script():
-    html = (ROOT / 'docs/index.html').read_text()
-    assert 'window.__permitsLoaded=true' in html
+    html = (ROOT / "docs/index.html").read_text()
+    assert "window.__permitsLoaded=true" in html
     assert "document.getElementById('pfstatus')" in html
 
 
 def test_committed_permit_legend_cannot_trigger_plan_listener():
-    html = (ROOT / 'docs/index.html').read_text()
-    assert 'plegend' not in html
+    html = (ROOT / "docs/index.html").read_text()
+    assert "plegend" not in html
     assert html.count('class="legend plan-legend"') == 1
     assert html.count('name="twitter:title"') == 1
-
-
 
 
 def test_mobile_ai_header_hidden_review_links_preserved(browser, served):

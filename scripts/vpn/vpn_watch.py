@@ -17,6 +17,7 @@ Per interval it prints:
   * new charon log lines that mention rekey, DPD, delete, retransmit,
     notify, closing or error events (masked)
 """
+
 from __future__ import annotations
 
 import re
@@ -38,11 +39,24 @@ _MASKS = [
     # Lookarounds instead of \b: "_" is a word character, so \b never fires
     # between the hex digits and the suffix (issue #120).
     (re.compile(r"(?<![0-9A-Za-z_])[0-9a-fA-F]{8,16}_[ior](?![0-9A-Za-z_])"), "<spi>"),
-    (re.compile(r"\bSPIs?[ =:]+(?:0x)?[0-9a-fA-F]+(?:_[ior])?(?![0-9A-Za-z_])", re.IGNORECASE),
-     "SPI <spi>"),
+    (
+        re.compile(
+            r"\bSPIs?[ =:]+(?:0x)?[0-9a-fA-F]+(?:_[ior])?(?![0-9A-Za-z_])",
+            re.IGNORECASE,
+        ),
+        "SPI <spi>",
+    ),
     (re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{16,}(?![0-9A-Za-z])"), "<hex>"),
-    (re.compile(r"\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:com|net|org|il|io|co|me)\b"), "<host>"),
-    (re.compile(r"(?i)(psk|password|secret|user(?:name)?|id)\s*[=:]\s*\S+"), r"\1=<redacted>"),
+    (
+        re.compile(
+            r"\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:com|net|org|il|io|co|me)\b"
+        ),
+        "<host>",
+    ),
+    (
+        re.compile(r"(?i)(psk|password|secret|user(?:name)?|id)\s*[=:]\s*\S+"),
+        r"\1=<redacted>",
+    ),
     (re.compile(r"'[^']{1,80}'"), "'<id>'"),
     (re.compile(r"\"[^\"]{1,80}\""), '"<id>"'),
 ]
@@ -75,7 +89,9 @@ def filter_status(text: str) -> list[str]:
 
 def _run(*cmd: str) -> str:
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=8, check=False).stdout
+        return subprocess.run(
+            cmd, capture_output=True, text=True, timeout=8, check=False
+        ).stdout
     except Exception as exc:  # noqa: BLE001 - never kill the job
         return f"<{type(exc).__name__}>"
 
@@ -93,9 +109,9 @@ def _probe() -> str:
     t0 = time.monotonic()
     try:
         with socket.create_connection(PROBE, timeout=6):
-            return f"probe: ok {int((time.monotonic()-t0)*1000)}ms"
+            return f"probe: ok {int((time.monotonic() - t0) * 1000)}ms"
     except Exception as exc:  # noqa: BLE001
-        return f"probe: FAIL {type(exc).__name__} after {int(time.monotonic()-t0)}s"
+        return f"probe: FAIL {type(exc).__name__} after {int(time.monotonic() - t0)}s"
 
 
 def main() -> None:
@@ -103,7 +119,7 @@ def main() -> None:
     offset = 0
     while True:
         el = int(time.monotonic() - start)
-        stamp = f"[vpnwatch t+{el//60}m{el%60:02d}s {time.strftime('%H:%M:%S', time.gmtime())}Z]"
+        stamp = f"[vpnwatch t+{el // 60}m{el % 60:02d}s {time.strftime('%H:%M:%S', time.gmtime())}Z]"
         print(stamp, _ppp(), _probe(), flush=True)
         for ln in filter_status(_run("ipsec", "statusall"))[:12]:
             print(stamp, "ipsec:", ln, flush=True)

@@ -7,6 +7,7 @@ The source DWG embeds its CRS as an ESRI WKT XRECORD: Israel_TM_Grid
 (EPSG:2039). LibreDWG writes that WKT with a raw newline inside the value,
 which breaks strict DXF tag parsing - repair_dxf_wkt() rejoins it.
 """
+
 import subprocess
 from pathlib import Path
 
@@ -22,7 +23,11 @@ def convert_dwg_to_dxf(dwg_path: str, dxf_path: str, dwg2dxf: str = "dwg2dxf") -
 
 
 def repair_dxf_wkt(dxf_path: str, out_path: str) -> str:
-    lines = Path(dxf_path).read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+    lines = (
+        Path(dxf_path)
+        .read_text(encoding="utf-8", errors="replace")
+        .splitlines(keepends=True)
+    )
     for i, line in enumerate(lines):
         if CRS_WKT_MARKER in line and not line.rstrip().endswith("]]"):
             lines[i] = line.rstrip("\r\n") + lines[i + 1]

@@ -7,6 +7,7 @@ commit - no manual lists, no dedicated Action (the scan rides the same
 commit as the data change). CI compares a fresh scan against the committed
 index, so a forgotten regeneration fails red.
 """
+
 import datetime
 import json
 import os
@@ -55,16 +56,27 @@ def scan(data_dir=DATA_DIR):
                 records = record_count(json.load(fh))
         except (json.JSONDecodeError, UnicodeDecodeError):
             kind = "unparsed"
-        datasets.append({"name": fn, "path": path, "kind": kind,
-                         "records": records, "bytes": os.path.getsize(path),
-                         "url": BLOB_BASE + path})
+        datasets.append(
+            {
+                "name": fn,
+                "path": path,
+                "kind": kind,
+                "records": records,
+                "bytes": os.path.getsize(path),
+                "url": BLOB_BASE + path,
+            }
+        )
     return datasets
 
 
 def build(data_dir=DATA_DIR, out=OUT):
-    payload = {"generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem")).date().isoformat(),  # issue #331: IL not runner UTC
-               "note": "auto-generated from repo folder state (issue #152) - do not edit by hand",
-               "datasets": scan(data_dir)}
+    payload = {
+        "generated": datetime.datetime.now(ZoneInfo("Asia/Jerusalem"))
+        .date()
+        .isoformat(),  # issue #331: IL not runner UTC
+        "note": "auto-generated from repo folder state (issue #152) - do not edit by hand",
+        "datasets": scan(data_dir),
+    }
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=1)
     return payload
@@ -76,6 +88,7 @@ def main():
     p = build(data_dir, out)
     if data_dir == DATA_DIR and out == OUT:
         from parcel_badges import build_badges
+
         build_badges()
     print(f"wrote {out}: {len(p['datasets'])} datasets")
     return 0
