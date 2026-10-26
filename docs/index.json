@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-25",
+ "generated": "2026-10-26",
  "note": "auto-generated from repo folder state (issue #152) - do not edit by hand",
  "datasets": [
   {
@@ -8,7 +8,7 @@
    "kind": "json",
    "records": null,
    "bytes": 400,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/backfill_request.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/backfill_request.json"
   },
   {
    "name": "council_ginot_hair.geojson",
@@ -16,7 +16,7 @@
    "kind": "geojson",
    "records": null,
    "bytes": 39415,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/council_ginot_hair.geojson"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/council_ginot_hair.geojson"
   },
   {
    "name": "external_reviews.json",
@@ -24,7 +24,7 @@
    "kind": "json",
    "records": null,
    "bytes": 16,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/external_reviews.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/external_reviews.json"
   },
   {
    "name": "ginot_hair_parcels.geojson",
@@ -32,7 +32,7 @@
    "kind": "geojson",
    "records": 4739,
    "bytes": 9325989,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/ginot_hair_parcels.geojson"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/ginot_hair_parcels.geojson"
   },
   {
    "name": "land_plan_status.json",
@@ -40,7 +40,7 @@
    "kind": "json",
    "records": null,
    "bytes": 58854,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/land_plan_status.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/land_plan_status.json"
   },
   {
    "name": "mavat_bglist_101-1377753.json",
@@ -48,7 +48,7 @@
    "kind": "json",
    "records": null,
    "bytes": 1712,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/mavat_bglist_101-1377753.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/mavat_bglist_101-1377753.json"
   },
   {
    "name": "mavat_declist_101-1377753.json",
@@ -56,7 +56,7 @@
    "kind": "json",
    "records": null,
    "bytes": 876,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/mavat_declist_101-1377753.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/mavat_declist_101-1377753.json"
   },
   {
    "name": "mavat_doclist_101-1377753.json",
@@ -64,7 +64,7 @@
    "kind": "json",
    "records": null,
    "bytes": 1305,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/mavat_doclist_101-1377753.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/mavat_doclist_101-1377753.json"
   },
   {
    "name": "mavat_tracked_plans.json",
@@ -72,7 +72,7 @@
    "kind": "json",
    "records": null,
    "bytes": 1542,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/mavat_tracked_plans.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/mavat_tracked_plans.json"
   },
   {
    "name": "parcel_audit.json",
@@ -80,7 +80,7 @@
    "kind": "json",
    "records": null,
    "bytes": 440,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/parcel_audit.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/parcel_audit.json"
   },
   {
    "name": "permit_enrich_spotcheck.json",
@@ -88,7 +88,7 @@
    "kind": "json",
    "records": 1,
    "bytes": 750,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/permit_enrich_spotcheck.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/permit_enrich_spotcheck.json"
   },
   {
    "name": "permit_requests.json",
@@ -96,7 +96,7 @@
    "kind": "json",
    "records": 11037,
    "bytes": 4500479,
-   "url": "https://github.com/reihlinstinct/ginot-hair-plans/blob/main/data/permit_requests.json"
+   "url": "https://github.com/reihl-tab/ginot-hair-plans/blob/main/data/permit_requests.json"
   }
  ]
 }
